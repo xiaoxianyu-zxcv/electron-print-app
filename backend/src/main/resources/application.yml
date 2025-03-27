@@ -24,8 +24,8 @@ server:
 
 # 日志配置
 logging:
-  file:
-    name: logs/print-service.log
+#  file:
+#    name: logs/print-service.log
   logback:
     rollingpolicy:
       max-file-size: 10MB
