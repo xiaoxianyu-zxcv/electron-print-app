@@ -1,0 +1,72 @@
+{
+    "name": "electron-print-app",
+    "version": "1.0.0",
+    "description": "基于Electron的桌面打印应用",
+    "main": "electron/main.js",
+    "private": true,
+    "scripts": {
+      "postinstall": "cd frontend && npm install",
+      "build:backend": "cd backend && mvn clean package -DskipTests",
+      "start:frontend": "cd frontend && npm run dev",
+      "build:frontend": "cd frontend && npm run build",
+      "start:electron": "cross-env NODE_ENV=development electron .",
+      "dev": "concurrently \"npm run start:frontend\" \"npm run start:electron\"",
+      "build": "npm run build:backend && npm run build:frontend",
+      "package": "electron-builder",
+      "package:win": "electron-builder --win",
+      "release": "npm run build && npm run package"
+    },
+    "keywords": [
+      "electron",
+      "spring-boot",
+      "printer",
+      "vue"
+    ],
+    "author": "Your Company",
+    "license": "MIT",
+    "devDependencies": {
+      "concurrently": "^8.2.0",
+      "cross-env": "^7.0.3",
+      "electron": "^25.1.0",
+      "electron-builder": "^24.4.0",
+      "wait-on": "^7.0.1"
+    },
+    "dependencies": {
+      "electron-log": "^4.4.8",
+      "find-free-port": "^2.0.0"
+    },
+    "build": {
+      "appId": "com.example.print-app",
+      "productName": "打印服务桌面版",
+      "directories": {
+        "output": "dist"
+      },
+      "files": [
+        "electron/**/*",
+        "frontend/dist/**/*",
+        "backend/target/*.jar",
+        "package.json"
+      ],
+      "win": {
+        "target": [
+          "nsis"
+        ],
+        "icon": "build/icons/icon.ico"
+      },
+      "nsis": {
+        "oneClick": false,
+        "allowToChangeInstallationDirectory": true,
+        "createDesktopShortcut": true,
+        "createStartMenuShortcut": true
+      },
+      "extraResources": [
+        {
+          "from": "backend/target",
+          "to": "backend",
+          "filter": [
+            "*.jar"
+          ]
+        }
+      ]
+    }
+  }
