@@ -14,7 +14,7 @@ remote:
     username: admin # 认证用户名
     password: password # 认证密码
   connection:
-    retry-interval: 5000 # 连接重试间隔(毫秒)
+    retry-interval: 50000 # 连接重试间隔(毫秒)
   poll:
     interval: 60000 # 轮询间隔(毫秒)
 

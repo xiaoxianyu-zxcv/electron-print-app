@@ -47,10 +47,7 @@ public class UnifiedPrintService {
 
     // 根据名称获取打印机
     public PrintService getPrinterByName(String printerName) {
-        // 优先使用传入的打印机名称
         String targetPrinter = printerName;
-
-        // 如果没有传入打印机名称，使用配置文件中的打印机名称
         if (targetPrinter == null || targetPrinter.trim().isEmpty()) {
             targetPrinter = configuredPrinterName;
         }
@@ -58,26 +55,27 @@ public class UnifiedPrintService {
         PrintService[] services = PrintServiceLookup.lookupPrintServices(null, null);
         if (services == null || services.length == 0) {
             log.error("当前进程无法访问打印服务");
-            // 打印当前进程信息，帮助诊断
             log.error("当前进程用户: " + System.getProperty("user.name"));
             log.error("当前进程路径: " + System.getProperty("user.dir"));
+            return null;
         }
 
+        // 打印所有可用打印机，帮助排查
+        log.info("系统中可用的打印机列表:");
+        for (PrintService service : services) {
+            log.info("打印机: {}", service.getName());
+        }
 
-        // 如果没有指定打印机，使用配置的默认打印机
-        return services[0];
+        // 根据名称查找打印机
+        for (PrintService service : services) {
+            if (service.getName().equals(targetPrinter)) {
+                log.info("使用打印机: {}", service.getName());
+                return service;
+            }
+        }
 
-
-        //PrintService[] services = PrintServiceLookup.lookupPrintServices(null, null);
-        //for (PrintService service : services) {
-        //    log.info("发现打印机: {}", service.getName());
-        //    if (service.getName().equals(targetPrinter)) {
-        //        log.info("使用打印机: {}", service.getName());
-        //        return service;
-        //    }
-        //}
-
-        //throw new PrinterNotAvailableException("找不到打印机: " + targetPrinter);
+        log.error("找不到打印机: {}", targetPrinter);
+        return null; // 返回null而不是第一个打印机，避免使用错误的打印机
     }
 
     // 执行打印任务
@@ -93,10 +91,17 @@ public class UnifiedPrintService {
                     throw new PrinterNotAvailableException("找不到可用的打印机");
                 }
 
-                // 解析任务内容
-                JSONObject printData = JSONObject.parseObject(task.getContent());
-                String formattedContent = formatPrintContent(printData);
+                String formattedContent;
 
+                // 尝试解析为JSON，如果失败则当作纯文本处理
+                try {
+                    JSONObject printData = JSONObject.parseObject(task.getContent());
+                    formattedContent = formatPrintContent(printData);
+                } catch (Exception e) {
+                    // 如果不是JSON格式，直接使用内容
+                    log.info("内容不是JSON格式，按纯文本处理");
+                    formattedContent = task.getContent();
+                }
 
                 // 输出打印任务详情
                 log.info("打印任务信息:");
@@ -137,31 +142,30 @@ public class UnifiedPrintService {
                 return false;
             }
 
-            //PrinterState printerState = printer.getAttribute(PrinterState.class);
-            //PrinterStateReasons stateReasons = printer.getAttribute(PrinterStateReasons.class);
-            //
-            //if (printerState == null) {
-            //    log.warn("无法获取打印机状态，假定打印机可用");
-            //    return true;
-            //}
-            //
-            //if (stateReasons != null && !stateReasons.isEmpty()) {
-            //    for (PrinterStateReason reason : stateReasons.keySet()) {
-            //        if (stateReasons.get(reason) == Severity.ERROR) {
-            //            log.error("打印机错误: {}", reason);
-            //            return false;
-            //        }
-            //    }
-            //}
-
             // 打印详细的属性信息
             AttributeSet attributes = printer.getAttributes();
             for (Attribute attr : attributes.toArray()) {
                 log.info("打印机属性: {} = {}", attr.getName(), attributes.get(attr.getClass()));
             }
-            // 直接返回 true，暂时跳过状态检查
-            return true;
 
+            PrinterState printerState = printer.getAttribute(PrinterState.class);
+            PrinterStateReasons stateReasons = printer.getAttribute(PrinterStateReasons.class);
+
+            if (printerState == null) {
+                log.warn("无法获取打印机状态，假定打印机可用");
+                return true;
+            }
+
+            if (stateReasons != null && !stateReasons.isEmpty()) {
+                for (PrinterStateReason reason : stateReasons.keySet()) {
+                    if (stateReasons.get(reason) == Severity.ERROR) {
+                        log.error("打印机错误: {}", reason);
+                        return false;
+                    }
+                }
+            }
+
+            return true;
         } catch (Exception e) {
             log.error("检查打印机状态时发生错误", e);
             return false;

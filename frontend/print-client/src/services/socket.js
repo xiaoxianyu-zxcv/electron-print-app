@@ -7,9 +7,29 @@ let stompClient = null
 let isConnected = false
 let reconnectTimer = null
 
+// 检查是否在Electron环境中
+const isElectron = window.electronAPI !== undefined;
+
+// 获取WebSocket服务地址
+const getServerUrl = async () => {
+    let serverUrl = import.meta.env.VITE_WS_URL || 'http://localhost:8080/print-ws';
+
+    // 在Electron环境中，动态获取服务端口
+    if (isElectron) {
+        try {
+            const port = await window.electronAPI.getServerPort();
+            serverUrl = `http://localhost:${port}/print-ws`;
+        } catch (error) {
+            console.error('获取服务端口失败:', error);
+        }
+    }
+
+    return serverUrl;
+};
+
 // 创建和配置STOMP客户端
-export const setupSocketConnection = () => {
-    const serverUrl = import.meta.env.VITE_WS_URL || 'http://localhost:8080/print-ws'
+export const setupSocketConnection = async () => {
+    const serverUrl = await getServerUrl();
     const printerStore = usePrinterStore()
     const taskStore = useTaskStore()
 
