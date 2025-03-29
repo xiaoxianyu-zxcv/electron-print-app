@@ -12,7 +12,7 @@ const isElectron = window.electronAPI !== undefined;
 
 // 获取WebSocket服务地址
 const getServerUrl = async () => {
-    let serverUrl = import.meta.env.VITE_WS_URL || 'http://localhost:8080/print-ws';
+    let serverUrl = import.meta.env.VITE_WS_URL || 'http://localhost:23333/print-ws';
 
     // 在Electron环境中，动态获取服务端口
     if (isElectron) {

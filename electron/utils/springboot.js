@@ -13,7 +13,7 @@ const { app } = require('electron');
 async function startSpringBootServer() {
   try {
     // 找到一个可用端口
-    const [freePort] = await findFreePort(8080);
+    const [freePort] = await findFreePort(23333);
     log.info(`将使用端口: ${freePort}启动Spring Boot服务`);
     
     // 确定JAR文件路径

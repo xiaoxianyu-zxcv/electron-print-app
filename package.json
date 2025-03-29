@@ -5,10 +5,10 @@
   "main": "electron/main.js",
   "private": true,
   "scripts": {
-    "postinstall": "cd frontend && npm install",
+    "postinstall": "cd frontend/print-client && pnpm install",
     "build:backend": "cd backend && mvn clean package -DskipTests",
     "start:frontend": "cd frontend && npm run dev",
-    "build:frontend": "cd frontend && npm run build",
+    "build:frontend": "cd frontend/print-client && npm run build",
     "start:electron": "cross-env NODE_ENV=development electron .",
     "dev": "concurrently \"npm run start:frontend\" \"npm run start:electron\"",
     "build": "npm run build:backend && npm run build:frontend",
@@ -51,7 +51,9 @@
       "target": [
         "nsis"
       ],
-      "icon": "build/icons/icon.ico"
+      "icon": "build/icons/icon.ico",
+      "signingHashAlgorithms": null,
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,

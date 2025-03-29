@@ -20,7 +20,7 @@ remote:
 
 # 服务端口配置
 server:
-  port: 8080
+  port: 23333
 
 # 日志配置
 logging:

@@ -5,7 +5,7 @@ const isElectron = window.electronAPI !== undefined;
 
 // 创建axios配置
 const createApiConfig = async () => {
-    let baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+    let baseURL = import.meta.env.VITE_API_URL || 'http://localhost:23333/api';
 
     // 在Electron环境中，动态获取服务端口
     if (isElectron) {
