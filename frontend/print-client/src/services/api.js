@@ -11,9 +11,17 @@ const createApiConfig = async () => {
     if (isElectron) {
         try {
             const port = await window.electronAPI.getServerPort();
-            baseURL = `http://localhost:${port}/api`;
+            if (!port) {
+                console.error('获取服务端口失败: 返回值为空');
+                // 添加备用方案
+                baseURL = 'http://localhost:23333/api';
+            } else {
+                baseURL = `http://localhost:${port}/api`;
+            }
         } catch (error) {
             console.error('获取服务端口失败:', error);
+            // 添加备用方案
+            baseURL = 'http://localhost:23333/api';
         }
     }
 
