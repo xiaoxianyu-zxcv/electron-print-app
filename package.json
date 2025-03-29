@@ -33,7 +33,6 @@
   },
   "dependencies": {
     "electron-log": "^4.4.8",
-    "electron-updater": "^6.6.2",
     "find-free-port": "^2.0.0"
   },
   "build": {

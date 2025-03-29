@@ -2,7 +2,6 @@ const { ipcMain } = require('electron');
 const log = require('electron-log');
 const http = require('http');
 const https = require('https');
-const {checkForUpdates} = require("./updater");
 
 /**
  * 设置所有IPC通信处理
@@ -21,11 +20,6 @@ function setupIpcHandlers(serverPort) {
     return require('../../package.json').version;
   });
 
-  // 手动检查更新
-  ipcMain.handle('check-for-updates', (event) => {
-    checkForUpdates();
-    return true;
-  });
 
   // API请求代理 - 将前端的请求转发到Spring Boot
   ipcMain.handle('api-request', async (event, { method, endpoint, data, headers }) => {

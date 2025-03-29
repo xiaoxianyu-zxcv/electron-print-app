@@ -62,6 +62,11 @@ public class RemoteDataService {
     @Value("${remote.connection.retry-interval:5000}")
     private long retryInterval;
 
+
+    // 添加用户信息和商户ID的存储
+    private String userId;
+    private String merchantId;
+
     @Autowired
     public RemoteDataService(
             PrintQueueManager printQueueManager,
@@ -86,6 +91,23 @@ public class RemoteDataService {
         return null;
     }
 
+
+    // 添加设置用户信息的方法
+    public void setUserInfo(String userId, String username, String merchantId) {
+        this.userId = userId;
+        this.username = username;
+        this.merchantId = merchantId;
+
+        // 如果已经连接，则重新连接以应用新的用户信息
+        if (isConnected.get()) {
+            disconnectStompClient();
+            connectStompClient();
+        }
+
+        // 同步一次数据
+        syncPrintTasks();
+    }
+
     /**
      * 连接STOMP客户端
      */
@@ -105,30 +127,36 @@ public class RemoteDataService {
             WebSocketStompClient stompClient = new WebSocketStompClient(client);
             stompClient.setMessageConverter(new MappingJackson2MessageConverter());
 
+
+            // 添加用户信息到STOMP头
+            StompHeaders headers = new StompHeaders();
+            if (merchantId != null) {
+                headers.add("merchantId", merchantId);
+            }
+            if (userId != null) {
+                headers.add("userId", userId);
+            }
+
             // 连接STOMP服务器
             String stompUrl = serverUrl + wsPath;
 
             // 创建STOMP会话处理器
-            StompSessionHandler sessionHandler = new StompSessionHandler() {
+            StompSessionHandler sessionHandler = new StompSessionHandlerAdapter() {
                 @Override
                 public void afterConnected(StompSession session, StompHeaders connectedHeaders) {
                     stompSession = session;
                     isConnected.set(true);
-                    log.info("STOMP连接已建立");
+                    log.info("STOMP连接已建立，用户ID: {}, 商户ID: {}", userId, merchantId);
 
-                    // 订阅打印主题
-                    session.subscribe("/topic/print-tasks", this);
-                    log.info("已订阅打印任务主题");
-
-                    // 发送身份验证消息
-                    if (authEnabled) {
-                        Map<String, String> authMessage = new HashMap<>();
-                        authMessage.put("type", "auth");
-                        authMessage.put("username", username);
-                        authMessage.put("password", password);
-                        session.send("/app/auth", authMessage);
-                        log.info("已发送身份验证信息");
+                    // 订阅商户特定的打印主题
+                    if (merchantId != null) {
+                        session.subscribe("/topic/merchant/" + merchantId + "/print-tasks", this);
+                        log.info("已订阅商户专属打印任务主题: /topic/merchant/{}", merchantId);
                     }
+
+                    // 也订阅通用打印主题作为备份
+                    session.subscribe("/topic/print-tasks", this);
+                    log.info("已订阅通用打印任务主题");
                 }
 
                 @Override
@@ -183,6 +211,22 @@ public class RemoteDataService {
             scheduleReconnect();
         }
     }
+
+
+    // 添加断开连接方法
+    private void disconnectStompClient() {
+        if (stompSession != null && stompSession.isConnected()) {
+            try {
+                stompSession.disconnect();
+                log.info("已断开STOMP连接");
+            } catch (Exception e) {
+                log.error("断开STOMP连接失败", e);
+            }
+        }
+        isConnected.set(false);
+        stompSession = null;
+    }
+
 
     /**
      * 将消息转换为PrintTask对象
@@ -269,6 +313,11 @@ public class RemoteDataService {
     public List<PrintTask> fetchPrintTasks() {
         try {
             String url = serverUrl + "/api/print-tasks/pending";
+            // 如果有商户ID，添加到URL参数
+            if (merchantId != null && !merchantId.isEmpty()) {
+                url += "?merchantId=" + merchantId;
+            }
+
             log.debug("正在从{}获取打印任务", url);
 
             HttpEntity<?> requestEntity = createAuthenticatedRequest();

@@ -101,6 +101,24 @@ export const cancelTask = async (taskId) => {
     return api.delete(`/tasks/${taskId}`);
 };
 
+export const login = async (username, password) => {
+    const api = await getApi();
+    return api.post('/user/login', { username, password });
+};
+
+// 添加登出函数
+export const logout = async () => {
+    const api = await getApi();
+    return api.post('/auth/logout');
+};
+
+// 添加获取登录状态的函数
+export const getAuthStatus = async () => {
+    const api = await getApi();
+    return api.get('/auth/status');
+};
+
+
 export default {
     getApi
 };
