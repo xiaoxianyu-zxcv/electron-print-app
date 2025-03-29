@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "electron-log": "^4.4.8",
+    "electron-updater": "^6.6.2",
     "find-free-port": "^2.0.0"
   },
   "build": {
@@ -50,7 +51,9 @@
       {
         "from": "backend/target",
         "to": "backend",
-        "filter": ["*.jar"]
+        "filter": [
+          "*.jar"
+        ]
       },
       {
         "from": "jre",
@@ -62,7 +65,9 @@
       }
     ],
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "build/icons/icon.ico"
     },
     "nsis": {
@@ -71,6 +76,12 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "artifactName": "${productName}-Setup-${version}.${ext}"
-    }
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "http://119.91.239.47:23335/updates/"
+      }
+    ]
   }
 }

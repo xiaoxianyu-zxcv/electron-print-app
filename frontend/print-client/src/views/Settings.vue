@@ -93,6 +93,10 @@
       </el-descriptions>
 
       <div class="action-buttons">
+        <el-button type="primary" @click="checkForUpdates">
+          检查更新
+        </el-button>
+
         <el-button type="primary" @click="refreshSystemInfo">
           刷新信息
         </el-button>
@@ -102,7 +106,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import {ref, computed, onMounted, onBeforeUnmount} from 'vue'
 import { ElMessage } from 'element-plus'
 import { usePrinterStore } from '../store/printer'
 import { testPrint } from '../services/api'
@@ -194,6 +198,21 @@ const refreshSystemInfo = async () => {
     ElMessage.error('刷新系统信息失败')
   }
 }
+
+// 检查更新功能
+const checkForUpdates = async () => {
+  try {
+    await window.electronAPI.checkForUpdates();
+    ElMessage.success('正在检查更新...');
+  } catch (error) {
+    ElMessage.error('检查更新失败');
+  }
+};
+
+
+onBeforeUnmount(() => {
+  window.electronAPI.removeUpdateProgressListener();
+});
 </script>
 
 <style scoped>

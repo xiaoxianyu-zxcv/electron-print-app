@@ -12,5 +12,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   apiRequest: (options) => ipcRenderer.invoke('api-request', options),
   
   // 检查服务状态
-  checkServerStatus: () => ipcRenderer.invoke('check-server-status')
+  checkServerStatus: () => ipcRenderer.invoke('check-server-status'),
+
+  // 检查更新
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+
+
+  // 监听更新进度
+  onUpdateProgress: (callback) => {
+    ipcRenderer.on('update-progress', (event, data) => callback(data));
+  },
+
+  // 移除更新进度监听
+  removeUpdateProgressListener: () => {
+    ipcRenderer.removeAllListeners('update-progress');
+  }
+
+
 });

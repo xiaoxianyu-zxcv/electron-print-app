@@ -3,6 +3,7 @@ const { startSpringBootServer, stopSpringBootServer } = require('./utils/springb
 const log = require('electron-log');
 const { setupIpcHandlers } = require('./utils/ipc-handlers');
 const {existsSync} = require("node:fs");
+const {initAutoUpdater, checkForUpdates} = require("./utils/updater");
 
 // 配置日志
 log.transports.file.level = 'info';
@@ -87,6 +88,13 @@ function setupTray() {
       },
       { type: 'separator' },
       {
+        label: '检查更新',
+        click: () => {
+          checkForUpdates();
+        }
+      },
+      { type: 'separator' },
+      {
         label: '退出',
         click: () => {
           isAppQuitting = true;
@@ -154,6 +162,15 @@ app.whenReady().then(async () => {
 
     // 创建主窗口
     await createWindow();
+
+    // 初始化自动更新
+    initAutoUpdater(mainWindow);
+
+    // 应用启动后检查更新
+    setTimeout(() => {
+      checkForUpdates();
+    }, 3000); // 延迟3秒检查，避免影响应用启动速度
+
 
     // 设置系统托盘
     setupTray();
