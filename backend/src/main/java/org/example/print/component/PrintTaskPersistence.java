@@ -5,9 +5,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.print.bean.PrintTask;
 import org.example.print.bean.PrintTaskStatus;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -17,36 +19,56 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-
 /**
  * 打印任务持久化
  */
 @Component
 @Slf4j
 public class PrintTaskPersistence {
-    private static final String TASK_DIR = "print_tasks";
-    private static final String COMPLETED_DIR = "completed_tasks";
+    // 使用配置的数据目录
+    @Value("${app.data.dir:./data}")
+    private String baseDir;
+
+    private String taskDir;
+    private String completedDir;
+    private String errorDir;
+
     private final ObjectMapper objectMapper;
 
-    @Autowired  // 注入全局配置的 ObjectMapper
+    @Autowired
     public PrintTaskPersistence(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
-        initDirectories();
+        // 不要在构造函数中初始化目录
     }
 
+    @PostConstruct
+    public void init() {
+        // 设置目录路径
+        taskDir = baseDir + "/print_tasks";
+        completedDir = baseDir + "/completed_tasks";
+        errorDir = baseDir + "/error_tasks";
+
+        // 创建目录
+        initDirectories();
+        log.info("数据目录初始化完成: baseDir={}, taskDir={}, completedDir={}, errorDir={}",
+                baseDir, taskDir, completedDir, errorDir);
+    }
 
     private void initDirectories() {
-        new File(TASK_DIR).mkdirs();
-        new File(COMPLETED_DIR).mkdirs();
-    }
+        // 确保基础目录存在
+        new File(baseDir).mkdirs();
+        new File(taskDir).mkdirs();
+        new File(completedDir).mkdirs();
+        new File(errorDir).mkdirs();
 
+        log.info("已创建所有必要目录");
+    }
 
     // 保存任务
     public void savePendingTask(PrintTask task) {
         String fileName = generateFileName(task);
-        saveTaskToFile(new File(TASK_DIR, fileName), task);
+        saveTaskToFile(new File(taskDir, fileName), task);
     }
-
 
     /**
      * 加载待处理任务
@@ -54,7 +76,7 @@ public class PrintTaskPersistence {
      */
     public List<PrintTask> loadPendingTasks() {
         List<PrintTask> tasks = new ArrayList<>();
-        File pendingDir = new File(TASK_DIR);
+        File pendingDir = new File(taskDir);
 
         if (!pendingDir.exists()) {
             log.info("待处理任务目录不存在，跳过加载");
@@ -111,7 +133,7 @@ public class PrintTaskPersistence {
      */
     private void moveToCompletedDirectory(File file, PrintTask task) {
         try {
-            File targetFile = new File(COMPLETED_DIR, file.getName());
+            File targetFile = new File(completedDir, file.getName());
             Files.move(file.toPath(), targetFile.toPath(),
                     StandardCopyOption.REPLACE_EXISTING);
             log.info("任务已移动到已完成目录: {}", task.getTaskId());
@@ -125,11 +147,6 @@ public class PrintTaskPersistence {
      */
     private void moveToErrorDirectory(File file) {
         try {
-            File errorDir = new File("error_tasks");
-            if (!errorDir.exists()) {
-                errorDir.mkdirs();
-            }
-
             File targetFile = new File(errorDir, file.getName());
             Files.move(file.toPath(), targetFile.toPath(),
                     StandardCopyOption.REPLACE_EXISTING);
@@ -139,12 +156,11 @@ public class PrintTaskPersistence {
         }
     }
 
-
     // 标记任务为已完成
     public void markTaskAsCompleted(PrintTask task) {
         String fileName = generateFileName(task);
-        File sourceFile = new File(TASK_DIR, fileName);
-        File targetFile = new File(COMPLETED_DIR, fileName);
+        File sourceFile = new File(taskDir, fileName);
+        File targetFile = new File(completedDir, fileName);
 
         try {
             if (sourceFile.exists()) {
@@ -157,13 +173,12 @@ public class PrintTaskPersistence {
         }
     }
 
-
     // 清理已完成的任务
     @Scheduled(cron = "0 0 0 * * ?")  // 每天零点执行
     public void cleanupCompletedTasks() {
-        File completedDir = new File(COMPLETED_DIR);
-        if (completedDir.exists()) {
-            File[] files = completedDir.listFiles();
+        File completedDirFile = new File(completedDir);
+        if (completedDirFile.exists()) {
+            File[] files = completedDirFile.listFiles();
             if (files != null) {
                 for (File file : files) {
                     if (file.lastModified() < System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000) {
@@ -175,7 +190,6 @@ public class PrintTaskPersistence {
             }
         }
     }
-
 
     // 生成文件名
     private String generateFileName(PrintTask task) {
@@ -193,6 +207,4 @@ public class PrintTaskPersistence {
             log.error("任务持久化失败: {}", task.getTaskId(), e);
         }
     }
-
-
 }

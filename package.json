@@ -43,32 +43,34 @@
     },
     "files": [
       "electron/**/*",
-      "frontend/dist/**/*",
-      "backend/target/*.jar",
+      "frontend/print-client/dist/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "backend/target",
+        "to": "backend",
+        "filter": ["*.jar"]
+      },
+      {
+        "from": "jre",
+        "to": "jre"
+      },
+      {
+        "from": "build/icons",
+        "to": "icons"
+      }
+    ],
     "win": {
-      "target": [
-        "nsis"
-      ],
-      "icon": "build/icons/icon.ico",
-      "signingHashAlgorithms": null,
-      "signAndEditExecutable": false
+      "target": ["nsis"],
+      "icon": "build/icons/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
-    },
-    "extraResources": [
-      {
-        "from": "backend/target",
-        "to": "backend",
-        "filter": [
-          "*.jar"
-        ]
-      }
-    ]
+      "createStartMenuShortcut": true,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    }
   }
 }

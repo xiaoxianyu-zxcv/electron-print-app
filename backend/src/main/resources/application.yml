@@ -24,8 +24,8 @@ server:
 
 # 日志配置
 logging:
-#  file:
-#    name: logs/print-service.log
+  file:
+    name: ${user.home}/AppData/Roaming/electron-print-app/logs/spring.log
   logback:
     rollingpolicy:
       max-file-size: 10MB
@@ -33,3 +33,8 @@ logging:
   level:
     org.example.print: INFO
     org.example.print.service.RemoteDataService: DEBUG
+
+# 应用数据存储路径（这个只是默认值，会被命令行参数覆盖）
+app:
+  data:
+    dir: ${user.home}/AppData/Roaming/electron-print-app/data

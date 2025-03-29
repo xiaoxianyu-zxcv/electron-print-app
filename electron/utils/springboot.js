@@ -15,53 +15,107 @@ async function startSpringBootServer() {
     // 找到一个可用端口
     const [freePort] = await findFreePort(23333);
     log.info(`将使用端口: ${freePort}启动Spring Boot服务`);
-    
+
     // 确定JAR文件路径
     let jarPath;
+    // 确定Java可执行文件路径
+    let javaExecutablePath;
+
     if (app.isPackaged) {
-      // 生产环境 - 从extraResources中获取JAR文件
+      // 生产环境 - 从extraResources中获取文件
       jarPath = path.join(process.resourcesPath, 'backend', 'boot_print-0.0.1-SNAPSHOT.jar');
+      // 构建内置JRE的Java路径（根据不同平台）
+      if (process.platform === 'win32') {
+        javaExecutablePath = path.join(process.resourcesPath, 'jre', 'bin', 'java.exe');
+      } else {
+        javaExecutablePath = path.join(process.resourcesPath, 'jre', 'bin', 'java');
+      }
     } else {
-      // 开发环境 - 从项目目录获取JAR文件
+      // 开发环境
       jarPath = path.join(__dirname, '../../backend/target/boot_print-0.0.1-SNAPSHOT.jar');
+      // 开发环境可以使用项目中的JRE或系统Java
+      if (fs.existsSync(path.join(__dirname, '../../jre'))) {
+        if (process.platform === 'win32') {
+          javaExecutablePath = path.join(__dirname, '../../jre', 'bin', 'java.exe');
+        } else {
+          javaExecutablePath = path.join(__dirname, '../../jre', 'bin', 'java');
+        }
+      } else {
+        javaExecutablePath = 'java'; // 回退到系统Java
+      }
     }
-    
-    // 验证JAR文件存在
+
+    // 验证文件存在
     if (!fs.existsSync(jarPath)) {
       throw new Error(`找不到Spring Boot JAR文件: ${jarPath}`);
     }
-    
+
+    if (javaExecutablePath !== 'java' && !fs.existsSync(javaExecutablePath)) {
+      log.warn(`找不到内置Java: ${javaExecutablePath}，将使用系统Java`);
+      javaExecutablePath = 'java';
+    }
+
+    log.info(`使用Java: ${javaExecutablePath}`);
     log.info(`使用JAR: ${jarPath}`);
-    
+
+    // 为可执行文件添加执行权限（仅在非Windows系统上）
+    if (process.platform !== 'win32' && javaExecutablePath !== 'java') {
+      try {
+        fs.chmodSync(javaExecutablePath, '755');
+        log.info('已为Java添加执行权限');
+      } catch (err) {
+        log.error('为Java添加执行权限失败:', err);
+      }
+    }
+
+    // 获取应用数据路径
+    const userDataPath = app.getPath('userData');
+    const dataDir = path.join(userDataPath, 'data');
+    const logsDir = path.join(userDataPath, 'logs');
+
+// 确保目录存在
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    if (!fs.existsSync(logsDir)) {
+      fs.mkdirSync(logsDir, { recursive: true });
+    }
+
+    log.info(`应用数据目录: ${dataDir}`);
+    log.info(`应用日志目录: ${logsDir}`);
+
     // 启动Java进程
-    const javaProcess = spawn('java', [
+    const javaProcess = spawn(javaExecutablePath, [
       '-Xmx256m',                          // 限制内存使用
       `-Dserver.port=${freePort}`,         // 指定端口
+      `-Dlogging.path=${app.getPath('userData')}/logs`, // 指定日志路径
       '-Dlogging.level.root=info',         // 设置日志级别
+      // 设置数据存储路径
+      `-Dapp.data.dir=${app.getPath('userData')}/data`,
       '-jar', jarPath                      // JAR文件路径
     ]);
-    
+
     // 输出Java进程日志
     javaProcess.stdout.on('data', (data) => {
       log.info(`[Spring Boot] ${data.toString().trim()}`);
     });
-    
+
     javaProcess.stderr.on('data', (data) => {
       log.error(`[Spring Boot Error] ${data.toString().trim()}`);
     });
-    
+
     javaProcess.on('error', (error) => {
       log.error('启动Spring Boot进程失败:', error);
       throw error;
     });
-    
+
     javaProcess.on('close', (code) => {
       log.info(`Spring Boot进程已退出，代码: ${code}`);
     });
-    
+
     // 等待服务启动
     await waitForServerReady(freePort);
-    
+
     return {
       port: freePort,
       process: javaProcess
