@@ -4,7 +4,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.print.bean.PrintTask;
 import org.example.print.bean.PrintTaskStatus;
 import org.example.print.component.PrintQueueManager;
-import org.example.print.controller.PrintMessageController;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
@@ -74,11 +73,17 @@ public class RemoteDataService {
 
     @PostConstruct
     public void initialize() {
+
         // 连接WebSocket
         connectStompClient();
 
         // 初始同步一次打印任务
         syncPrintTasks();
+    }
+
+    // 获取当前用户ID的辅助方法
+    private Integer getUserId() {
+        return null;
     }
 
     /**
@@ -225,7 +230,16 @@ public class RemoteDataService {
     @Scheduled(fixedDelayString = "${remote.poll.interval:60000}")
     public void syncPrintTasks() {
         try {
+            // 添加用户ID到连接信息
+            Integer userId = getUserId();
             log.debug("开始同步打印任务");
+
+            // 添加用户ID作为参数
+            String url = serverUrl + "/api/print-tasks/pending";
+            if (userId != null) {
+                url += "?userId=" + userId;
+            }
+
             List<PrintTask> tasks = fetchPrintTasks();
 
             if (!tasks.isEmpty()) {

@@ -32,6 +32,23 @@
       </el-form>
     </el-card>
 
+
+
+    <el-card class="settings-card">
+      <template #header>
+        <div class="card-header">
+          <span>服务器设置</span>
+        </div>
+      </template>
+
+      <el-form label-width="120px">
+        <el-form-item label="服务器地址">
+          <el-input v-model="serverUrl" placeholder="http://121.62.28.55" />
+        </el-form-item>
+        <el-button type="primary" @click="saveServerSettings">保存服务器设置</el-button>
+      </el-form>
+    </el-card>
+
     <el-card class="settings-card">
       <template #header>
         <div class="card-header">
@@ -93,10 +110,6 @@
       </el-descriptions>
 
       <div class="action-buttons">
-        <el-button type="primary" @click="checkForUpdates">
-          检查更新
-        </el-button>
-
         <el-button type="primary" @click="refreshSystemInfo">
           刷新信息
         </el-button>
@@ -106,7 +119,7 @@
 </template>
 
 <script setup>
-import {ref, computed, onMounted, onBeforeUnmount} from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { usePrinterStore } from '../store/printer'
 import { testPrint } from '../services/api'
@@ -119,6 +132,7 @@ const isSubmitting = ref(false)
 const isTestingPrint = ref(false)
 const selectedPrinter = ref('')
 const testContent = ref('测试打印内容\n这是一条测试消息\n打印时间: ' + new Date().toLocaleString())
+const serverUrl = ref('')
 
 // 计算属性
 const printers = computed(() => printerStore.printers)
@@ -199,20 +213,14 @@ const refreshSystemInfo = async () => {
   }
 }
 
-// 检查更新功能
-const checkForUpdates = async () => {
+const saveServerSettings = async () => {
   try {
-    await window.electronAPI.checkForUpdates();
-    ElMessage.success('正在检查更新...');
+    await testPrint({ serverUrl: serverUrl.value });
+    ElMessage.success('服务器设置已保存');
   } catch (error) {
-    ElMessage.error('检查更新失败');
+    ElMessage.error('服务器连接失败');
   }
 };
-
-
-onBeforeUnmount(() => {
-  window.electronAPI.removeUpdateProgressListener();
-});
 </script>
 
 <style scoped>

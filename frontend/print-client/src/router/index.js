@@ -12,6 +12,12 @@ const routes = [
         redirect: '/dashboard'
     },
     {
+        path: '/login',
+        name: 'Login',
+        component: () => import('../views/Login.vue'),
+        meta: { title: '用户登录', requiresAuth: false }
+    },
+    {
         path: '/dashboard',
         name: 'Dashboard',
         component: Dashboard,
@@ -41,6 +47,20 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
     document.title = to.meta.title ? `打印客户端 - ${to.meta.title}` : '打印客户端'
     next()
+})
+
+// 添加路由守卫
+router.beforeEach((to, from, next) => {
+    const userId = localStorage.getItem('userId')
+
+    if (to.matched.some(record => record.meta.requiresAuth !== false) && !userId) {
+        // 需要登录但用户未登录
+        next('/login')
+    } else {
+        // 设置页面标题
+        document.title = to.meta.title ? `打印客户端 - ${to.meta.title}` : '打印客户端'
+        next()
+    }
 })
 
 export default router
