@@ -94,7 +94,7 @@ public class RemoteDataService {
 
 
     // 添加设置用户信息的方法
-    public void setUserInfo(String userId, String username, String merchantId) {
+    public void setUserInfo(String userId, String username, String merchantId , String storeId) {
         this.userId = userId;
         this.username = username;
         this.merchantId = merchantId;
