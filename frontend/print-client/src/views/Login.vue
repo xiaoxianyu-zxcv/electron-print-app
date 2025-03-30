@@ -27,6 +27,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { login as apiLogin } from '../services/api'
+import {setupSocketConnection} from "../services/socket.js";
 
 const router = useRouter()
 const isLoading = ref(false)
@@ -45,14 +46,21 @@ const login = async () => {
   try {
     const result = await apiLogin(loginForm.username, loginForm.password)
     if (result && result.userId) {
+      // 存储用户信息
       localStorage.setItem('userId', result.userId)
       localStorage.setItem('username', result.username)
       localStorage.setItem('merchantId', result.merchantId)
-      localStorage.setItem('storeId', result.storeId) // 新增：保存storeId
-      router.push('/dashboard')
+
+      // 记录storeId并确保它被正确存储
+      const storeId = result.storeId;
+      localStorage.setItem('storeId', storeId)
+      console.log('登录成功，storeId:', storeId); // 添加日志
+
+      // 重新连接WebSocket
+      await setupSocketConnection();
+
+      await router.push('/dashboard')
       ElMessage.success('登录成功')
-    } else {
-      ElMessage.error('登录失败')
     }
   } catch (error) {
     ElMessage.error('登录失败: ' + error.message)

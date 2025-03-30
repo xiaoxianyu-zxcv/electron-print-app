@@ -94,12 +94,13 @@ public class RemoteDataService {
 
 
     // 添加设置用户信息的方法
-    public void setUserInfo(String userId, String username, String merchantId , String storeId) {
+    public void setUserInfo(String userId, String username, String merchantId, String storeId) {
         this.userId = userId;
         this.username = username;
         this.merchantId = merchantId;
         this.storeId = storeId;
-        // 如果已经连接，则重新连接以应用新的用户信息
+
+        // 如果已经连接，则重新连接以应用新的店铺信息
         if (isConnected.get()) {
             disconnectStompClient();
             connectStompClient();
@@ -163,7 +164,8 @@ public class RemoteDataService {
                     }
 
                     // 也订阅通用打印主题作为备份
-                    session.subscribe("/topic/print-tasks", this);
+                    //todo暂时不订阅
+                    //session.subscribe("/topic/print-tasks", this);
                     log.info("已订阅通用打印任务主题");
                 }
 

@@ -81,7 +81,16 @@ const getApi = () => {
 // API函数
 export const fetchPendingTasks = async () => {
     const api = await getApi();
-    return api.get('/tasks/pending');
+    // 获取storeId
+    const storeId = localStorage.getItem('storeId');
+
+    if (storeId) {
+        return api.get(`/tasks/pending?storeId=${storeId}`);
+    } else {
+        // 没有storeId时返回空数组
+        console.warn('没有storeId，无法获取待处理任务');
+        return [];
+    }
 };
 
 export const addPrintTask = async (task) => {

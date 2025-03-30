@@ -12,14 +12,11 @@ const isElectron = window.electronAPI !== undefined;
 
 // 获取WebSocket服务地址
 const getServerUrl = async () => {
-    let serverUrl = import.meta.env.VITE_WS_URL || 'http://localhost:23333/print-ws';
-
-
-    // 添加store_id参数
+    // 从localStorage获取storeId
     const storeId = localStorage.getItem('storeId');
-    if (storeId) {
-        serverUrl += (serverUrl.includes('?') ? '&' : '?') + 'storeId=' + storeId;
-    }
+    console.log('WebSocket准备连接，storeId:', storeId);
+
+    let serverUrl = import.meta.env.VITE_WS_URL || 'http://localhost:23333/print-ws';
 
     // 在Electron环境中，动态获取服务端口
     if (isElectron) {
@@ -31,6 +28,14 @@ const getServerUrl = async () => {
         }
     }
 
+    // 重要：确保storeId被添加到URL，无论是Electron环境还是普通环境
+    if (storeId) {
+        serverUrl += (serverUrl.includes('?') ? '&' : '?') + 'storeId=' + storeId;
+        console.log('WebSocket URL (含storeId):', serverUrl);
+    } else {
+        console.warn('没有storeId，WebSocket将无法接收店铺消息');
+    }
+
     return serverUrl;
 };
 
@@ -39,6 +44,12 @@ export const setupSocketConnection = async () => {
     const serverUrl = await getServerUrl();
     const printerStore = usePrinterStore()
     const taskStore = useTaskStore()
+
+
+    // 记录当前storeId和连接URL便于调试
+    const storeId = localStorage.getItem('storeId');
+    console.log('连接WebSocket，店铺ID:', storeId);
+    console.log('WebSocket连接URL:', serverUrl);
 
     // 如果已经连接，则返回
     if (isConnected && stompClient) {
@@ -69,43 +80,96 @@ export const setupSocketConnection = async () => {
 
         // 连接成功回调
         onConnect: function() {
-            console.log('STOMP连接已建立')
-            isConnected = true
-            printerStore.updateConnectionStatus(true)
+            console.log('STOMP连接已建立');
+            isConnected = true;
+            printerStore.updateConnectionStatus(true);
 
-            // 订阅打印状态主题
+            // 获取storeId
+            const storeId = localStorage.getItem('storeId');
+            console.log('准备订阅店铺主题，storeId:', storeId);
+            // 订阅店铺特定主题
+            if (storeId) {
+
+                // stompClient.subscribe(`/topic/store/${storeId}/print-tasks`, function(message) {
+                //     try {
+                //         const task = JSON.parse(message.body);
+                //         console.log(`收到店铺(${storeId})打印任务:`, task);
+                //
+                //         // 将任务添加到任务存储
+                //         taskStore.addOrUpdateTask(task);
+                //     } catch (error) {
+                //         console.error('处理打印任务失败', error);
+                //     }
+                // });
+
+
+                // 注意：这里使用的是字符串模板，确保storeId被正确解析
+                const printTasksTopic = `/topic/store/${storeId}/print-tasks`;
+                console.log('订阅打印任务主题:', printTasksTopic);
+
+                stompClient.subscribe(printTasksTopic, function(message) {
+                    try {
+                        console.log('收到店铺打印任务消息:', message.body);
+                        const task = JSON.parse(message.body);
+                        // 将任务添加到任务存储
+                        taskStore.addOrUpdateTask(task);
+                    } catch (error) {
+                        console.error('处理打印任务失败', error);
+                    }
+                });
+
+
+
+                // 订阅店铺特定状态更新
+                stompClient.subscribe(`/topic/store/${storeId}/print-status`, function(message) {
+                    try {
+                        const statusUpdate = JSON.parse(message.body);
+                        console.log(`收到店铺(${storeId})状态更新:`, statusUpdate);
+
+                        if (statusUpdate.taskId && statusUpdate.status) {
+                            taskStore.updateTaskStatus(statusUpdate.taskId, statusUpdate.status);
+                        }
+                    } catch (error) {
+                        console.error('处理状态更新失败', error);
+                    }
+                });
+
+                console.log(`已订阅店铺特定主题: /topic/store/${storeId}/print-tasks`);
+            } else {
+                console.warn('没有storeId，无法订阅店铺特定主题');
+            }
+
+            // 保留通用状态更新主题
             stompClient.subscribe('/topic/print-status', function(message) {
                 try {
-                    const statusUpdate = JSON.parse(message.body)
-                    console.log('收到状态更新:', statusUpdate)
+                    const statusUpdate = JSON.parse(message.body);
+                    console.log('收到状态更新:', statusUpdate);
 
                     if (statusUpdate.taskId && statusUpdate.status) {
-                        taskStore.updateTaskStatus(statusUpdate.taskId, statusUpdate.status)
+                        taskStore.updateTaskStatus(statusUpdate.taskId, statusUpdate.status);
                     }
                 } catch (error) {
-                    console.error('处理状态更新失败', error)
+                    console.error('处理状态更新失败', error);
                 }
-            })
+            });
 
             // 订阅打印错误主题
             stompClient.subscribe('/topic/print-errors', function(message) {
                 try {
-                    const errorData = JSON.parse(message.body)
-                    console.error('打印错误:', errorData)
-
-                    // 这里可以添加错误通知UI
+                    const errorData = JSON.parse(message.body);
+                    console.error('打印错误:', errorData);
                 } catch (error) {
-                    console.error('处理错误消息失败', error)
+                    console.error('处理错误消息失败', error);
                 }
-            })
+            });
 
             // 订阅心跳主题
             stompClient.subscribe('/topic/heartbeat', function() {
                 // 心跳响应不需要特殊处理
-            })
+            });
 
             // 发送初始心跳
-            sendHeartbeat()
+            sendHeartbeat();
         },
 
         // 连接错误回调
