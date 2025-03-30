@@ -23,6 +23,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+
+
 @Service
 @Slf4j
 public class UnifiedPrintService {
@@ -39,6 +45,11 @@ public class UnifiedPrintService {
 
     @Autowired
     private PrintTaskPersistence printTaskPersistence;
+
+
+    //模拟打印
+    @Value("${print.test-mode:false}")
+    private boolean testMode;
 
     // 获取所有打印机
     public List<PrintService> getAllPrinters() {
@@ -82,6 +93,22 @@ public class UnifiedPrintService {
     public CompletableFuture<PrintResult> executePrint(PrintTask task) {
         return CompletableFuture.supplyAsync(() -> {
             try {
+
+
+                if (testMode) {
+                    // 将打印内容保存到文件而不是实际打印
+                    saveToFile(task.getContent(), "print_test_" + task.getTaskId() + ".txt");
+                    log.info("测试模式：打印内容已保存到文件");
+
+                    // 更新任务状态
+                    task.setStatus(PrintTaskStatus.COMPLETED);
+                    printTaskPersistence.markTaskAsCompleted(task);
+                    printMetrics.recordSuccess();
+
+                    return new PrintResult(true, "测试模式打印成功");
+                }
+
+
                 if (!isPrinterReady(task.getPrinterName())) {
                     throw new PrinterNotAvailableException("打印机未就绪: " + task.getPrinterName());
                 }
@@ -102,6 +129,7 @@ public class UnifiedPrintService {
                     log.info("内容不是JSON格式，按纯文本处理");
                     formattedContent = task.getContent();
                 }
+
 
                 // 输出打印任务详情
                 log.info("打印任务信息:");
@@ -256,4 +284,27 @@ public class UnifiedPrintService {
             super(message);
         }
     }
+
+
+    private void saveToFile(String content, String fileName) {
+        try {
+            // 确保保存目录存在
+            File dir = new File("print_tests");
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+
+            // 创建文件并写入内容
+            File file = new File(dir, fileName);
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                fos.write(content.getBytes(StandardCharsets.UTF_8));
+            }
+
+            log.info("已将打印内容保存到文件: {}", file.getAbsolutePath());
+        } catch (IOException e) {
+            log.error("保存打印内容到文件失败", e);
+        }
+    }
+
+
 }

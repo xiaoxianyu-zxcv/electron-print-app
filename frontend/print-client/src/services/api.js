@@ -39,6 +39,24 @@ const createApiInstance = async () => {
     const config = await createApiConfig();
     const instance = axios.create(config);
 
+    //  请求拦截器
+    instance.interceptors.request.use(
+        config => {
+            console.log('发送请求:', {
+                url: config.url,
+                method: config.method,
+                data: config.data,
+                headers: config.headers
+            });
+            return config;
+        },
+        error => {
+            console.error('请求错误:', error);
+            return Promise.reject(error);
+        }
+    );
+
+
     // 响应拦截器
     instance.interceptors.response.use(
         response => response.data,
