@@ -26,6 +26,7 @@ public class UserAuthService {
     private String userId;
     private String username;
     private String merchantId;
+    private String storeId;
 
     /**
      * 用户登录
@@ -53,9 +54,10 @@ public class UserAuthService {
                 this.userId = result.get("userId").toString();
                 this.username = result.get("username").toString();
                 this.merchantId = result.get("merchantId").toString();
+                this.storeId = result.get("storeId").toString();
 
                 // 更新远程数据服务的用户信息
-                remoteDataService.setUserInfo(this.userId, this.username, this.merchantId);
+                remoteDataService.setUserInfo(this.userId, this.username, this.merchantId ,this.storeId);
 
                 log.info("用户登录成功: {}, 商户ID: {}", this.username, this.merchantId);
 
@@ -69,6 +71,11 @@ public class UserAuthService {
             return null;
         }
     }
+
+    public String getCurrentStoreId() {
+        return storeId;
+    }
+
 
     /**
      * 检查是否已登录
@@ -98,9 +105,9 @@ public class UserAuthService {
         this.userId = null;
         this.username = null;
         this.merchantId = null;
-
+        this.storeId = null;
         // 清除远程数据服务的用户信息
-        remoteDataService.setUserInfo(null, null, null);
+        remoteDataService.setUserInfo(null, null, null, null);
 
         log.info("用户已登出");
     }

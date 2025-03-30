@@ -66,6 +66,7 @@ public class RemoteDataService {
     // 添加用户信息和商户ID的存储
     private String userId;
     private String merchantId;
+    private String storeId;
 
     @Autowired
     public RemoteDataService(
@@ -97,7 +98,7 @@ public class RemoteDataService {
         this.userId = userId;
         this.username = username;
         this.merchantId = merchantId;
-
+        this.storeId = storeId;
         // 如果已经连接，则重新连接以应用新的用户信息
         if (isConnected.get()) {
             disconnectStompClient();
@@ -136,6 +137,9 @@ public class RemoteDataService {
             if (userId != null) {
                 headers.add("userId", userId);
             }
+            if (storeId != null) {
+                headers.add("storeId", storeId);
+            }
 
             // 连接STOMP服务器
             String stompUrl = serverUrl + wsPath;
@@ -152,6 +156,10 @@ public class RemoteDataService {
                     if (merchantId != null) {
                         session.subscribe("/topic/merchant/" + merchantId + "/print-tasks", this);
                         log.info("已订阅商户专属打印任务主题: /topic/merchant/{}", merchantId);
+                    }
+                    if (storeId != null) {
+                        session.subscribe("/topic/store/" + storeId + "/print-tasks", this);
+                        log.info("已订阅门店专属打印任务主题: /topic/store/{}", storeId);
                     }
 
                     // 也订阅通用打印主题作为备份
@@ -313,8 +321,12 @@ public class RemoteDataService {
     public List<PrintTask> fetchPrintTasks() {
         try {
             String url = serverUrl + "/api/print-tasks/pending";
-            // 如果有商户ID，添加到URL参数
-            if (merchantId != null && !merchantId.isEmpty()) {
+            // 优先使用store_id过滤
+            if (storeId != null && !storeId.isEmpty()) {
+                url += "?storeId=" + storeId;
+            }
+            // 次之使用merchant_id
+            else if (merchantId != null && !merchantId.isEmpty()) {
                 url += "?merchantId=" + merchantId;
             }
 

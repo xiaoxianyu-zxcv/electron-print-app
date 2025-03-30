@@ -48,6 +48,7 @@ const login = async () => {
       localStorage.setItem('userId', result.userId)
       localStorage.setItem('username', result.username)
       localStorage.setItem('merchantId', result.merchantId)
+      localStorage.setItem('storeId', result.storeId) // 新增：保存storeId
       router.push('/dashboard')
       ElMessage.success('登录成功')
     } else {

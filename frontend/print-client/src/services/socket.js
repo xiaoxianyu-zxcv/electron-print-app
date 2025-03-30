@@ -14,6 +14,13 @@ const isElectron = window.electronAPI !== undefined;
 const getServerUrl = async () => {
     let serverUrl = import.meta.env.VITE_WS_URL || 'http://localhost:23333/print-ws';
 
+
+    // 添加store_id参数
+    const storeId = localStorage.getItem('storeId');
+    if (storeId) {
+        serverUrl += (serverUrl.includes('?') ? '&' : '?') + 'storeId=' + storeId;
+    }
+
     // 在Electron环境中，动态获取服务端口
     if (isElectron) {
         try {
