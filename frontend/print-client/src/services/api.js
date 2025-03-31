@@ -139,6 +139,11 @@ export const logout = async () => {
     return api.post('/auth/logout');
 };
 
+export const getUserInfo = async () => {
+    const api = await getApi();
+    return api.get('/user/status');
+};
+
 // 添加获取登录状态的函数
 export const getAuthStatus = async () => {
     const api = await getApi();

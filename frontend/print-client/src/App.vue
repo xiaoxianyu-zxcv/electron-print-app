@@ -91,6 +91,7 @@ import { setupSocketConnection, disconnect as disconnectSocket } from './service
 import { usePrinterStore } from './store/printer'
 import { useTaskStore } from './store/tasks'
 import { Menu as IconMenu, Document as IconDocument, Setting as IconSetting } from '@element-plus/icons-vue'
+import {getUserInfo} from "./services/api.js";
 
 const route = useRoute()
 const printerStore = usePrinterStore()
@@ -124,11 +125,34 @@ const disconnect = () => {
 
 // 组件挂载时
 onMounted(async () => {
+
+  // 检查是否有用户ID和storeId
+  const userId = localStorage.getItem('userId');
+  const storeId = localStorage.getItem('storeId');
+
+  // 如果有用户ID但没有storeId，尝试获取用户信息
+  if (userId && (!storeId || storeId === 'null' || storeId === 'undefined')) {
+    try {
+      console.log('检测到用户ID但没有storeId，尝试获取用户信息...');
+      const userInfo = await getUserInfo();
+
+      if (userInfo && userInfo.storeId) {
+        localStorage.setItem('storeId', userInfo.storeId);
+        console.log('成功获取并设置storeId:', userInfo.storeId);
+      } else {
+        console.warn('用户信息API没有返回storeId:', userInfo);
+      }
+    } catch (error) {
+      console.error('获取用户信息失败:', error);
+      ElMessage.warning('获取店铺信息失败，可能影响订单过滤');
+    }
+  }
+
   // 加载系统状态
   try {
-    await printerStore.refreshSystemStatus()
+    await printerStore.refreshSystemStatus();
   } catch (error) {
-    ElMessage.warning('无法获取系统状态，请检查服务是否启动')
+    ElMessage.warning('无法获取系统状态，请检查服务是否启动');
   }
 
   // 自动连接WebSocket

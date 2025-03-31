@@ -16,7 +16,7 @@ remote:
   connection:
     retry-interval: 500 # 连接重试间隔(毫秒)
   poll:
-    interval: 60000 # 轮询间隔(毫秒)
+    interval: 10000 # 轮询间隔(毫秒)
 
 # 服务端口配置
 server:

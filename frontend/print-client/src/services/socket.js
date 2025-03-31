@@ -2,6 +2,7 @@ import { Client } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
 import { usePrinterStore } from '../store/printer'
 import { useTaskStore } from '../store/tasks'
+import {getUserInfo} from "./api.js";
 
 let stompClient = null
 let isConnected = false
@@ -37,6 +38,32 @@ const getServerUrl = async () => {
     }
 
     return serverUrl;
+};
+
+
+// 在重连函数或错误处理中添加
+const reconnect = async () => {
+    try {
+        // 重新检查 storeId
+        const storeId = localStorage.getItem('storeId');
+        if (!storeId) {
+            console.warn('重连时无法获取 storeId，尝试刷新用户信息');
+            try {
+                const userInfo = await getUserInfo();
+                if (userInfo && userInfo.storeId) {
+                    localStorage.setItem('storeId', userInfo.storeId);
+                    console.log('重连前成功刷新 storeId:', userInfo.storeId);
+                }
+            } catch (error) {
+                console.error('重连时刷新用户信息失败:', error);
+            }
+        }
+
+        // 重新连接 WebSocket
+        await setupSocketConnection();
+    } catch (error) {
+        console.error('WebSocket 重连失败:', error);
+    }
 };
 
 // 创建和配置STOMP客户端

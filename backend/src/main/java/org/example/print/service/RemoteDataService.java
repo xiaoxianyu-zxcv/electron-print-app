@@ -281,7 +281,7 @@ public class RemoteDataService {
      * 定期同步打印任务
      * 作为WebSocket的备份机制
      */
-    @Scheduled(fixedDelayString = "${remote.poll.interval:60000}")
+    @Scheduled(fixedDelayString = "${remote.poll.interval:10000}")
     public void syncPrintTasks() {
         try {
             // 添加用户ID到连接信息

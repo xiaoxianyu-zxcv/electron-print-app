@@ -47,21 +47,6 @@ public class UserAuthController {
         }
     }
 
-    /**
-     * 获取当前登录状态
-     */
-    @GetMapping("/status")
-    public ResponseEntity<Map<String, Object>> getStatus() {
-        Map<String, Object> status = new HashMap<>();
-        status.put("loggedIn", userAuthService.isLoggedIn());
-
-        if (userAuthService.isLoggedIn()) {
-            status.put("userId", userAuthService.getCurrentUserId());
-            status.put("merchantId", userAuthService.getCurrentMerchantId());
-        }
-
-        return ResponseEntity.ok(status);
-    }
 
     /**
      * 登出
@@ -76,4 +61,32 @@ public class UserAuthController {
 
         return ResponseEntity.ok(response);
     }
+
+
+    /**
+     * 获取用户状态
+     *
+     */
+    @GetMapping("/status")
+    public ResponseEntity<Map<String, Object>> getStatus() {
+        Map<String, Object> status = new HashMap<>();
+        status.put("loggedIn", userAuthService.isLoggedIn());
+
+        if (userAuthService.isLoggedIn()) {
+            status.put("userId", userAuthService.getCurrentUserId());
+            status.put("merchantId", userAuthService.getCurrentMerchantId());
+
+            // 添加storeId到响应
+            String storeId = userAuthService.getCurrentStoreId();
+            status.put("storeId", storeId);
+
+            log.info("返回用户状态 - userId: {}, merchantId: {}, storeId: {}",
+                    userAuthService.getCurrentUserId(),
+                    userAuthService.getCurrentMerchantId(),
+                    storeId);
+        }
+
+        return ResponseEntity.ok(status);
+    }
+
 }
