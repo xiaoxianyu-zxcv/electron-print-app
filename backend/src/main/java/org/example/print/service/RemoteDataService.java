@@ -154,10 +154,10 @@ public class RemoteDataService {
                     log.info("STOMP连接已建立，用户ID: {}, 商户ID: {}", userId, merchantId);
 
                     // 订阅商户特定的打印主题
-                    if (merchantId != null) {
-                        session.subscribe("/topic/merchant/" + merchantId + "/print-tasks", this);
-                        log.info("已订阅商户专属打印任务主题: /topic/merchant/{}", merchantId);
-                    }
+                    //if (merchantId != null) {
+                    //    session.subscribe("/topic/merchant/" + merchantId + "/print-tasks", this);
+                    //    log.info("已订阅商户专属打印任务主题: /topic/merchant/{}", merchantId);
+                    //}
                     if (storeId != null) {
                         session.subscribe("/topic/store/" + storeId + "/print-tasks", this);
                         log.info("已订阅门店专属打印任务主题: /topic/store/{}", storeId);
