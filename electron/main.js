@@ -1,5 +1,4 @@
 // 在文件顶部引入自动更新模块
-const fs = require('fs-extra');
 const { app, BrowserWindow, ipcMain, Menu, Tray, dialog } = require('electron');
 const path = require('path');
 const { startSpringBootServer, stopSpringBootServer } = require('./utils/springboot');
@@ -176,7 +175,7 @@ async function createWindow() {
 
 // 设置系统托盘
 function setupTray() {
-  try{
+  try {
     log.info('设置系统托盘');
 
     tray = new Tray(iconPath);
@@ -227,35 +226,14 @@ function setupTray() {
         mainWindow.show();
       }
     });
-  }catch (error) {
+  } catch (error) {
     log.error('创建系统托盘失败:', error);
-    // 使用fallback空图标，避免崩溃
-    const emptyIconPath = path.join(__dirname, 'empty.png'); // 创建一个1x1像素的空图标
-    if (!existsSync(emptyIconPath)) {
-      createEmptyIcon(emptyIconPath);
-    }
-    tray = new Tray(emptyIconPath);
+    // 简化错误处理，不再创建空图标
+    // 如果您想要一个更简单的备用方案，可以预先打包一个空图标文件
+    dialog.showErrorBox('警告', '无法创建系统托盘图标，部分功能可能受限');
   }
 }
 
-// 添加创建空图标的辅助函数
-function createEmptyIcon(filePath) {
-  try {
-    // 创建1x1像素的透明PNG
-    const buffer = Buffer.from([
-      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-      0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-      0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
-      0x0B, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0x60, 0x00, 0x02, 0x00,
-      0x00, 0x05, 0x00, 0x01, 0xE2, 0x26, 0x05, 0x9B, 0x00, 0x00, 0x00, 0x00,
-      0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
-    ]);
-    fs.writeFileSync(filePath, buffer);
-    log.info('已创建空图标');
-  } catch (error) {
-    log.error('创建空图标失败:', error);
-  }
-}
 
 // 当Electron完成初始化时调用
 app.whenReady().then(async () => {

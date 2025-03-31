@@ -34,8 +34,7 @@
   "dependencies": {
     "electron-log": "^4.4.8",
     "electron-updater": "^6.6.2",
-    "find-free-port": "^2.0.0",
-    "fs-extra": "^11.3.0"
+    "find-free-port": "^2.0.0"
   },
   "build": {
     "appId": "com.example.print-app",
@@ -43,6 +42,7 @@
     "directories": {
       "output": "dist"
     },
+    "asar": false,
     "files": [
       "electron/**/*",
       "frontend/print-client/dist/**/*",
@@ -56,10 +56,6 @@
         "filter": [
           "*.jar"
         ]
-      },
-      {
-        "from": "node_modules/fs-extra",
-        "to": "node_modules/fs-extra"
       },
       {
         "from": "jre",
