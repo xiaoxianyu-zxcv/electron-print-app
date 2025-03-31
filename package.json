@@ -1,6 +1,6 @@
 {
   "name": "electron-print-app",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "基于Electron的桌面打印应用",
   "main": "electron/main.js",
   "private": true,
@@ -33,7 +33,9 @@
   },
   "dependencies": {
     "electron-log": "^4.4.8",
-    "find-free-port": "^2.0.0"
+    "electron-updater": "^6.6.2",
+    "find-free-port": "^2.0.0",
+    "fs-extra": "^11.3.0"
   },
   "build": {
     "appId": "com.example.print-app",
@@ -44,7 +46,8 @@
     "files": [
       "electron/**/*",
       "frontend/print-client/dist/**/*",
-      "package.json"
+      "package.json",
+      "node_modules/**/*"
     ],
     "extraResources": [
       {
@@ -53,6 +56,10 @@
         "filter": [
           "*.jar"
         ]
+      },
+      {
+        "from": "node_modules/fs-extra",
+        "to": "node_modules/fs-extra"
       },
       {
         "from": "jre",
@@ -79,7 +86,7 @@
     "publish": [
       {
         "provider": "generic",
-        "url": "http://119.91.239.47:23335/updates/"
+        "url": "http://121.62.28.55/updates/"
       }
     ]
   }

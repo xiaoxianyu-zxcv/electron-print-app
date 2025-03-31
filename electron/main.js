@@ -1,12 +1,21 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, dialog } = require('electron');const path = require('path');
+// 在文件顶部引入自动更新模块
+const fs = require('fs-extra');
+const { app, BrowserWindow, ipcMain, Menu, Tray, dialog } = require('electron');
+const path = require('path');
 const { startSpringBootServer, stopSpringBootServer } = require('./utils/springboot');
 const log = require('electron-log');
 const { setupIpcHandlers } = require('./utils/ipc-handlers');
-const {existsSync} = require("node:fs");
+const { existsSync } = require("node:fs");
+const { autoUpdater } = require('electron-updater');
 
 // 配置日志
 log.transports.file.level = 'info';
 log.info('应用启动');
+
+// 配置自动更新日志
+autoUpdater.logger = log;
+autoUpdater.logger.transports.file.level = 'info';
+log.info('自动更新已配置');
 
 // 全局引用
 let mainWindow;
@@ -14,7 +23,6 @@ let tray;
 let serverPort;
 let serverProcess;
 let isAppQuitting = false;
-
 
 // 获取图标路径
 let iconPath;
@@ -24,6 +32,104 @@ if (app.isPackaged) {
   iconPath = path.join(__dirname, '../build/icons/icon.png');
 }
 log.info(`使用图标路径: ${iconPath}`);
+
+// 自动更新相关函数
+function setupAutoUpdater() {
+  // 检查更新出错
+  autoUpdater.on('error', (error) => {
+    log.error('更新检查失败', error);
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('update-error', error.message);
+    }
+  });
+
+  // 检查更新中
+  autoUpdater.on('checking-for-update', () => {
+    log.info('正在检查更新...');
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('checking-for-update');
+    }
+  });
+
+  // 有可用更新
+  autoUpdater.on('update-available', (info) => {
+    log.info('发现新版本', info);
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('update-available', info);
+    }
+
+    // 可选：提示用户是否下载
+    dialog.showMessageBox({
+      type: 'info',
+      title: '发现新版本',
+      message: `发现新版本: ${info.version}`,
+      detail: '新版本正在后台下载，下载完成后将通知您安装',
+      buttons: ['好的']
+    });
+  });
+
+  // 没有可用更新
+  autoUpdater.on('update-not-available', (info) => {
+    log.info('当前已是最新版本', info);
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('update-not-available');
+    }
+  });
+
+  // 更新下载进度
+  autoUpdater.on('download-progress', (progressObj) => {
+    let logMessage = `下载速度: ${progressObj.bytesPerSecond} - 已下载 ${progressObj.percent}% (${progressObj.transferred}/${progressObj.total})`;
+    log.info(logMessage);
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('download-progress', progressObj);
+    }
+  });
+
+  // 更新下载完成
+  autoUpdater.on('update-downloaded', (info) => {
+    log.info('更新下载完成', info);
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('update-downloaded', info);
+    }
+
+    // 提示用户是否立即安装
+    dialog.showMessageBox({
+      type: 'info',
+      title: '安装更新',
+      message: '更新下载完成',
+      detail: '应用将关闭并安装更新，然后自动重启。',
+      buttons: ['立即安装', '稍后安装']
+    }).then((returnValue) => {
+      if (returnValue.response === 0) {
+        // 用户同意立即更新，关闭后端服务并退出应用
+        isAppQuitting = true;
+        if (serverProcess) {
+          stopSpringBootServer(serverProcess).then(() => {
+            log.info('Spring Boot服务已关闭，准备安装更新');
+            autoUpdater.quitAndInstall(false, true);
+          }).catch((error) => {
+            log.error('关闭Spring Boot服务失败', error);
+            autoUpdater.quitAndInstall(false, true);
+          });
+        } else {
+          autoUpdater.quitAndInstall(false, true);
+        }
+      }
+    });
+  });
+
+  // 设置自动下载
+  autoUpdater.autoDownload = true;
+
+  // 开始检查更新
+  if (app.isPackaged) {
+    // 仅在打包环境下检查更新
+    log.info('开始检查更新');
+    autoUpdater.checkForUpdates();
+  } else {
+    log.info('开发环境下不检查更新');
+  }
+}
 
 async function createWindow() {
   log.info('创建主窗口');
@@ -87,6 +193,22 @@ function setupTray() {
       },
       { type: 'separator' },
       {
+        label: '检查更新',
+        click: () => {
+          if (app.isPackaged) {
+            log.info('手动检查更新');
+            autoUpdater.checkForUpdates();
+          } else {
+            dialog.showMessageBox({
+              type: 'info',
+              title: '开发模式',
+              message: '开发模式下无法检查更新'
+            });
+          }
+        }
+      },
+      { type: 'separator' },
+      {
         label: '退出',
         click: () => {
           isAppQuitting = true;
@@ -116,7 +238,6 @@ function setupTray() {
   }
 }
 
-
 // 添加创建空图标的辅助函数
 function createEmptyIcon(filePath) {
   try {
@@ -135,7 +256,6 @@ function createEmptyIcon(filePath) {
     log.error('创建空图标失败:', error);
   }
 }
-
 
 // 当Electron完成初始化时调用
 app.whenReady().then(async () => {
@@ -157,6 +277,27 @@ app.whenReady().then(async () => {
 
     // 设置系统托盘
     setupTray();
+
+    // 设置自动更新
+    setupAutoUpdater();
+
+    // 定期检查更新 (每小时检查一次)
+    setInterval(() => {
+      if (app.isPackaged) {
+        log.info('定期检查更新');
+        autoUpdater.checkForUpdates();
+      }
+    }, 60 * 60 * 1000);
+
+    // 添加IPC处理器处理前端请求
+    ipcMain.handle('check-for-updates', () => {
+      if (app.isPackaged) {
+        log.info('前端请求检查更新');
+        autoUpdater.checkForUpdates();
+        return { checking: true };
+      }
+      return { checking: false, reason: 'In development mode' };
+    });
 
     // macOS特定处理
     app.on('activate', () => {
@@ -189,7 +330,7 @@ app.on('will-quit', async (event) => {
   if (serverProcess) {
     log.info('正在关闭Spring Boot服务...');
     event.preventDefault();
-    
+
     try {
       await stopSpringBootServer(serverProcess);
       log.info('Spring Boot服务已关闭');

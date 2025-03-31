@@ -30,6 +30,12 @@ const routes = [
         meta: { title: '系统设置' }
     },
     {
+        path: '/updateComponent',
+        name: 'UpdateComponent',
+        component: Settings,
+        meta: { title: '系统设置' }
+    },
+    {
         path: '/history',
         name: 'History',
         component: History,

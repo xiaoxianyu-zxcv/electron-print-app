@@ -31,7 +31,7 @@
         <div class="system-status">
           <div class="status-item">
             <span>系统版本:</span>
-            <span>{{ systemStatus.version || '未知' }}</span>
+            <span>{{ appVersion || systemStatus.version || '未知' }}</span>
           </div>
           <div class="status-item">
             <span>打印机状态:</span>
@@ -44,6 +44,16 @@
             <el-tag :type="isConnected ? 'success' : 'danger'" size="small">
               {{ isConnected ? '已连接' : '未连接' }}
             </el-tag>
+          </div>
+          <!-- 添加更新检查按钮 -->
+          <div class="status-item update-check-btn" v-if="isElectron">
+            <el-button
+                type="primary"
+                size="small"
+                @click="checkForUpdates"
+                :loading="isCheckingUpdate">
+              检查更新
+            </el-button>
           </div>
         </div>
       </el-aside>
@@ -65,6 +75,9 @@
         </el-header>
 
         <el-main>
+          <!-- 更新组件 -->
+          <UpdateComponent ref="updateComponent" v-if="isElectron" />
+
           <!-- 路由视图 -->
           <router-view v-slot="{ Component }">
             <transition name="fade" mode="out-in">
@@ -91,7 +104,8 @@ import { setupSocketConnection, disconnect as disconnectSocket } from './service
 import { usePrinterStore } from './store/printer'
 import { useTaskStore } from './store/tasks'
 import { Menu as IconMenu, Document as IconDocument, Setting as IconSetting } from '@element-plus/icons-vue'
-import {getUserInfo} from "./services/api.js";
+import { getUserInfo } from "./services/api.js";
+import UpdateComponent from './components/UpdateComponent.vue';
 
 const route = useRoute()
 const printerStore = usePrinterStore()
@@ -107,6 +121,26 @@ const isConnected = computed(() => printerStore.isConnected)
 // 当前路由信息
 const activeRoute = computed(() => route.path)
 const currentRouteName = computed(() => route.meta.title || '打印客户端')
+
+// 更新相关
+const isElectron = window.electronAPI !== undefined;
+const updateComponent = ref(null);
+const isCheckingUpdate = ref(false);
+const appVersion = ref('');
+
+// 手动检查更新
+const checkForUpdates = async () => {
+  if (!isElectron || !updateComponent.value) return;
+
+  isCheckingUpdate.value = true;
+  try {
+    await updateComponent.value.checkForUpdates();
+  } finally {
+    setTimeout(() => {
+      isCheckingUpdate.value = false;
+    }, 1000);
+  }
+};
 
 // 连接/断开WebSocket
 const connect = async () => {
@@ -125,7 +159,6 @@ const disconnect = () => {
 
 // 组件挂载时
 onMounted(async () => {
-
   // 检查是否有用户ID和storeId
   const userId = localStorage.getItem('userId');
   const storeId = localStorage.getItem('storeId');
@@ -153,6 +186,16 @@ onMounted(async () => {
     await printerStore.refreshSystemStatus();
   } catch (error) {
     ElMessage.warning('无法获取系统状态，请检查服务是否启动');
+  }
+
+  // 获取应用版本
+  if (isElectron) {
+    try {
+      appVersion.value = await window.electronAPI.getAppVersion();
+      console.log('应用版本:', appVersion.value);
+    } catch (error) {
+      console.error('获取应用版本失败:', error);
+    }
   }
 
   // 自动连接WebSocket
@@ -238,6 +281,11 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 5px;
+}
+
+.update-check-btn {
+  justify-content: center;
+  margin-top: 10px;
 }
 
 /* 过渡动画 */
