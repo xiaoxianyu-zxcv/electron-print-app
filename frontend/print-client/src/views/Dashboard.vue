@@ -6,7 +6,7 @@
         <el-card shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>待处理任务</span>
+              <span>新版本待处理任务</span>
             </div>
           </template>
           <div class="card-value">{{ queueStats.pendingTasks }}</div>

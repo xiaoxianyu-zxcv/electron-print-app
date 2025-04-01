@@ -1,6 +1,6 @@
 {
   "name": "electron-print-app",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "基于Electron的桌面打印应用",
   "main": "electron/main.js",
   "private": true,
@@ -27,14 +27,18 @@
   "devDependencies": {
     "concurrently": "^8.2.0",
     "cross-env": "^7.0.3",
-    "electron": "^25.1.0",
+    "electron": "^19.0.0",
     "electron-builder": "^24.13.3",
     "wait-on": "^7.0.1"
   },
   "dependencies": {
     "electron-log": "^4.4.8",
     "electron-updater": "^6.6.2",
-    "find-free-port": "^2.0.0"
+    "find-free-port": "^2.0.0",
+    "fs-extra": "^11.3.0",
+    "graceful-fs": "^4.2.11",
+    "jsonfile": "^6.1.0",
+    "universalify": "^2.0.1"
   },
   "build": {
     "appId": "com.example.print-app",
@@ -42,12 +46,30 @@
     "directories": {
       "output": "dist"
     },
-    "asar": false,
+    "asar": true,
     "files": [
       "electron/**/*",
       "frontend/print-client/dist/**/*",
       "package.json",
-      "node_modules/**/*"
+      "node_modules/electron-log/**/*",
+      "node_modules/graceful-fs/**/*",
+      "node_modules/fs-extra/**/*",
+      "node_modules/universalify/**/*",
+      "node_modules/find-free-port/**/*",
+      "node_modules/jsonfile/**/*",
+      "node_modules/electron-updater/**/*"
+    ],
+    "extraFiles": [
+      {
+        "from": "node_modules",
+        "to": "node_modules",
+        "filter": [
+          "graceful-fs/**/*",
+          "fs-extra/**/*",
+          "universalify/**/*",
+          "jsonfile/**/*"
+        ]
+      }
     ],
     "extraResources": [
       {
