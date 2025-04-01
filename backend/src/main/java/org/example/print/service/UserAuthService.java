@@ -81,7 +81,7 @@ public class UserAuthService {
      * 检查是否已登录
      */
     public boolean isLoggedIn() {
-        return userId != null && merchantId != null;
+        return userId != null && storeId != null;
     }
 
     /**

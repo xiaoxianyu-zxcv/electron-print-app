@@ -155,7 +155,7 @@ async function createWindow() {
     // 生产模式下加载构建后的文件
     await mainWindow.loadFile(path.join(__dirname, '../frontend/print-client/dist/index.html'));
     // 在生产环境中也打开开发者工具进行调试
-    mainWindow.webContents.openDevTools();
+    // mainWindow.webContents.openDevTools();
   }
 
   // 窗口关闭时的处理

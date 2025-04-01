@@ -1,5 +1,6 @@
 package org.example.print.service;
 
+import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import lombok.extern.slf4j.Slf4j;
 import org.example.print.bean.PrintTask;
@@ -218,60 +219,190 @@ public class UnifiedPrintService {
     private String formatPrintContent(JSONObject data) {
         StringBuilder content = new StringBuilder();
 
-
         // ESC/POS 指令常量
         final String ESC = "\u001B";
         final String GS = "\u001D";
-        // 字体放大指令: ESC ! n  (n = 0-255, 位0-3表示字体，位4-7表示大小)
-        final String NORMAL_SIZE = ESC + "!0";  // 正常大小
-        final String LARGE_SIZE = ESC + "!16";  // 双倍大小
+        // 字体大小控制
+        final String SMALL_SIZE = ESC + "!1";      // 小号字体
+        final String NORMAL_SIZE = GS + "!0"; // 正常大小
+        final String LARGE_SIZE = GS + "!1";  // 稍大一点
+        final String MEDIUM_SIZE = GS + "!16"; // 中等大小
+        // 对齐方式控制
+        final String ALIGN_LEFT = ESC + "a0";      // 左对齐
+        final String ALIGN_CENTER = ESC + "a1";    // 居中对齐
+        final String ALIGN_RIGHT = ESC + "a2";     // 右对齐
+        // 分隔线
+        final String DIVIDER = "--------------------------------\n";
 
-
-        // 标题部分
-        content.append("         配送单\n");
-        content.append(LARGE_SIZE)  // 切换到大号字体
-                .append("指尖赤壁\n")
-                .append("========\n")
-                .append(data.getString("merchant")).append("\n")  // 商家名称也使用大号字体
-                .append(NORMAL_SIZE);  // 切换回正常字体
-
-        content.append("#").append(data.getString("day_index")).append("\n\n");
-
-        // 订单信息部分
-        content.append("订单号: ").append(data.getString("orderNo")).append("\n");
-        content.append("下单时间: ").append(data.getString("orderTime").substring(5, 16)).append("\n");
-        String goodsStr = data.getString("goods");
-        String[] goods = goodsStr.split(", ");  // 按逗号分割商品
-        for (String good : goods) {
-            content.append("  ").append(good).append("\n");  // 缩进显示每个商品
+        // 获取商品数组，兼容旧版本数据格式
+        JSONArray goodsItems;
+        if (data.containsKey("goodsItems")) {
+            goodsItems = data.getJSONArray("goodsItems");
+        } else {
+            goodsItems = new JSONArray();
         }
-        content.append("配送费: ").append(data.getString("deliveryFee")).append("\n");
-        content.append("商品总价: ￥").append(data.getString("totalPrice")).append("\n");
-        content.append("实付金额: ￥").append(data.getString("actualPayment")).append("\n");
-        content.append("支付方式: ").append(data.getString("paymentMethod")).append("\n");
-        content.append("配送状态: ").append(data.getString("delivery_status")).append("\n");
 
-        // 第一条分隔线
-        content.append("-----------------------------\n");
+        // 计算商品总数量
+        int totalQty = 0;
+        for (int i = 0; i < goodsItems.size(); i++) {
+            JSONObject item = goodsItems.getJSONObject(i);
+            totalQty += item.getIntValue("sell_num", 0);
+        }
 
-        // 顾客信息部分
-        content.append("顾客信息: ")
-                .append(data.getString("customer"))
-                .append(" ")
-                .append(data.getString("customerPhone"))
-                .append("\n");
-        content.append("收货地址: ").append(data.getString("address")).append("\n");
+        // 判断订单类型（线上/线下）
+        boolean isOnline = data.getIntValue("type", 1) == 1; // 默认为线上
 
-        // 打印时间和结束分隔线
-        content.append("打印时间: ").append(getCurrentTime()).append("\n");
-        content.append("-----------------------------\n\n\n");  // 留出撕纸空间
+        // 判断配送类型
+        int pickupType = data.getIntValue("pickup_type", 0); // 默认为配送
+        String deliveryType = pickupType == 0 ? "配送单" : "自提单";
+
+        // 打印两份联单：商家联和用户联
+        for (int i = 0; i < 1; i++) {
+            boolean isMerchantCopy = (i == 0); // 第一份是商家联，第二份是用户联
+
+            // 1. 标题 - 指尖赤壁（居中，大字体）
+            content.append(ALIGN_CENTER)
+                    .append(NORMAL_SIZE)
+                    .append("指尖赤壁\n")
+                    .append(NORMAL_SIZE)
+                    .append(DIVIDER);
+
+            // 2. 联单类型（左：商家联/用户联，右：配送单/自提单）
+            content.append(ALIGN_LEFT)
+                    .append(isMerchantCopy ? "商家联" : "用户联")
+                    .append(ALIGN_RIGHT)
+                    .append(deliveryType)
+                    .append("\n");
+
+            // 3. 商家名称（居中）
+            content.append(ALIGN_CENTER)
+                    .append(SMALL_SIZE)
+                    .append(data.containsKey("merchant") ? data.getString("merchant") : "指尖赤壁")
+                    .append("\n")
+                    .append(SMALL_SIZE);
+
+            // 4. 当日第几单
+            content.append(ALIGN_LEFT)
+                    .append("#")
+                    .append(data.containsKey("day_index") ? data.getString("day_index") : "")
+                    .append("\n")
+                    .append(DIVIDER);
+
+            // 5. 商品列表头部
+            content.append(ALIGN_LEFT)
+                    .append("商品名         数量   单价    小计\n");
+
+            // 商品明细
+            double totalAmount = 0;
+            for (int j = 0; j < goodsItems.size(); j++) {
+                JSONObject item = goodsItems.getJSONObject(j);
+                String goodsName = item.containsKey("goods_name") ? item.getString("goods_name") : "";
+                int qty = item.getIntValue("sell_num", 0);
+                double price = item.containsKey("sell_price") ? item.getDoubleValue("sell_price") : 0;
+                double subtotal = item.containsKey("sell_subtotal") ? item.getDoubleValue("sell_subtotal") : 0;
+                totalAmount += subtotal;
+
+                // 商品名称可能过长需要截断
+                if (goodsName.length() > 10) {
+                    goodsName = goodsName.substring(0, 8) + "..";
+                }
+
+                // 格式化商品行，确保对齐
+                content.append(String.format("%-12s %-5d %-6.2f %-6.2f\n",
+                        goodsName, qty, price, subtotal));
+            }
+
+            // 6. 原价和数量
+            content.append(ALIGN_LEFT)
+                    .append("原价: ￥")
+                    .append(String.format("%.2f", data.containsKey("goods_price") ? data.getDoubleValue("goods_price") : 0));
+            content.append(ALIGN_RIGHT)
+                    .append("数量: ")
+                    .append(totalQty)
+                    .append("\n");
+
+            // 7. 优惠和应收
+            double discount = (data.containsKey("goods_price") ? data.getDoubleValue("goods_price") : 0)
+                    - (data.containsKey("pay_money") ? data.getDoubleValue("pay_money") : 0);
+            content.append(ALIGN_LEFT)
+                    .append("优惠: ￥")
+                    .append(String.format("%.2f", discount));
+            content.append(ALIGN_RIGHT)
+                    .append("应收: ￥")
+                    .append(String.format("%.2f", data.containsKey("pay_money") ? data.getDoubleValue("pay_money") : 0))
+                    .append("\n");
+
+            // 8. 实付金额
+            content.append(ALIGN_LEFT)
+                    .append("实付: ￥")
+                    .append(String.format("%.2f", data.containsKey("pay_money") ? data.getDoubleValue("pay_money") : 0))
+                    .append("\n")
+                    .append(DIVIDER);
+
+            // 9. 线上或线下
+            content.append(isOnline ? "线上订单" : "线下订单")
+                    .append("\n");
+
+            // 订单其他信息
+            content.append("订单号: ")
+                    .append(data.containsKey("orderNo") ? data.getString("orderNo") : "")
+                    .append("\n");
+
+            // 支付方式
+            int payType = data.getIntValue("pay_type", 0);
+            String payMethod = "未知";
+            if (payType == 1) payMethod = "微信小程序";
+            else if (payType == 2) payMethod = "余额支付";
+
+            content.append("支付方式: ")
+                    .append(payMethod)
+                    .append("\n");
+
+            // 支付时间
+            content.append("支付时间: ")
+                    .append(data.containsKey("orderTime") ? data.getString("orderTime") : "")
+                    .append("\n");
+
+            // 如果是配送单，添加收货信息
+            if (pickupType == 0 && data.containsKey("user_name")) {
+                content.append("收货人: ")
+                        .append(data.containsKey("user_name") ? data.getString("user_name") : "")
+                        .append("\n");
+                content.append("电话: ")
+                        .append(data.containsKey("user_phone") ? data.getString("user_phone") : "")
+                        .append("\n");
+                content.append("地址: ")
+                        .append(data.containsKey("user_address") ? data.getString("user_address") : "")
+                        .append("\n");
+            }
+
+            // 备注信息
+            if (data.containsKey("remark") && !(data.containsKey("remark") ? data.getString("remark") : "").isEmpty()) {
+                content.append("备注: ")
+                        .append(data.containsKey("remark") ? data.getString("remark") : "")
+                        .append("\n");
+            }
+
+            // 添加打印时间
+            content.append("打印时间: ")
+                    .append(getCurrentTime())
+                    .append("\n\n\n");
+
+            // 添加切纸或足够的空行以便手撕
+            if (i == 0) { // 第一联结束，添加更多空行作为两联之间的间隔
+                content.append("\n\n\n\n\n");
+            }
+        }
 
         return content.toString();
     }
 
+
+    // 获取当前时间
     private String getCurrentTime() {
         return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
+
 
     // 打印结果类
     public static class PrintResult {

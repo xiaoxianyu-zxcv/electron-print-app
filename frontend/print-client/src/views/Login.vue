@@ -50,11 +50,11 @@ const login = async () => {
       localStorage.setItem('userId', result.userId)
       localStorage.setItem('username', result.username)
       localStorage.setItem('merchantId', result.merchantId)
+      localStorage.setItem('storeId', result.storeId)
+      console.log('登录成功，storeId:', result); // 添加日志
 
-      // 记录storeId并确保它被正确存储
-      const storeId = result.storeId;
-      localStorage.setItem('storeId', storeId)
-      console.log('登录成功，storeId:', storeId); // 添加日志
+      // 添加密码
+      localStorage.setItem('password', loginForm.password)
 
       // 重新连接WebSocket
       await setupSocketConnection();

@@ -51,12 +51,6 @@ const router = createRouter({
 
 // 全局前置守卫，设置页面标题
 router.beforeEach((to, from, next) => {
-    document.title = to.meta.title ? `打印客户端 - ${to.meta.title}` : '打印客户端'
-    next()
-})
-
-// 添加路由守卫
-router.beforeEach((to, from, next) => {
     const userId = localStorage.getItem('userId')
 
     if (to.matched.some(record => record.meta.requiresAuth !== false) && !userId) {

@@ -98,16 +98,17 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { useRouter, useRoute } from 'vue-router'
 import { setupSocketConnection, disconnect as disconnectSocket } from './services/socket'
 import { usePrinterStore } from './store/printer'
 import { useTaskStore } from './store/tasks'
 import { Menu as IconMenu, Document as IconDocument, Setting as IconSetting } from '@element-plus/icons-vue'
-import { getUserInfo } from "./services/api.js";
+import { getUserInfo ,login as apiLogin } from "./services/api.js";
 import UpdateComponent from './components/UpdateComponent.vue';
 
 const route = useRoute()
+const router = useRouter()
 const printerStore = usePrinterStore()
 const taskStore = useTaskStore()
 
@@ -161,23 +162,34 @@ const disconnect = () => {
 onMounted(async () => {
   // 检查是否有用户ID和storeId
   const userId = localStorage.getItem('userId');
+  const username = localStorage.getItem('username');
   const storeId = localStorage.getItem('storeId');
+  const password = localStorage.getItem('password');
 
   // 如果有用户ID但没有storeId，尝试获取用户信息
-  if (userId && (!storeId || storeId === 'null' || storeId === 'undefined')) {
+  // 如果有用户ID但没有storeId，尝试获取用户信息
+  if (userId) {
     try {
-      console.log('检测到用户ID但没有storeId，尝试获取用户信息...');
-      const userInfo = await getUserInfo();
+      // 检查后端登录状态
+      const userStatus = await getUserInfo();
 
-      if (userInfo && userInfo.storeId) {
-        localStorage.setItem('storeId', userInfo.storeId);
-        console.log('成功获取并设置storeId:', userInfo.storeId);
-      } else {
-        console.warn('用户信息API没有返回storeId:', userInfo);
+      // 如果后端显示未登录，但前端有登录信息，则自动重新登录
+      if (!userStatus.loggedIn && username && password) {
+        console.log('检测到后端未登录，正在自动重新登录...');
+        await apiLogin(username, password);  // 使用apiLogin而非login
+        console.log('自动重新登录成功');
+
+        // 重新加载状态
+        await printerStore.refreshSystemStatus();
+      } else if (!userStatus.loggedIn) {
+        // 如果没有足够信息自动登录，则重定向到登录页面
+        console.log('检测到后端未登录，但没有足够的凭据自动登录');
+        router.push('/login');
       }
     } catch (error) {
-      console.error('获取用户信息失败:', error);
-      ElMessage.warning('获取店铺信息失败，可能影响订单过滤');
+      console.error('检查登录状态失败:', error);
+      // ElMessage.warning('无法验证登录状态，请重新登录');
+      router.push('/login');
     }
   }
 
@@ -199,7 +211,7 @@ onMounted(async () => {
   }
 
   // 自动连接WebSocket
-  connect()
+  await connect()
 
   // 设置定期刷新状态
   const statusTimer = setInterval(() => {
