@@ -77,16 +77,30 @@ public class UnifiedPrintService {
             log.info("打印机: {}", service.getName());
         }
 
-        // 根据名称查找打印机
+        // 1. 首先尝试使用指定名称的打印机
         for (PrintService service : services) {
             if (service.getName().equals(targetPrinter)) {
-                log.info("使用打印机: {}", service.getName());
+                log.info("使用指定打印机: {}", service.getName());
                 return service;
             }
         }
 
-        log.error("找不到打印机: {}", targetPrinter);
-        return null; // 返回null而不是第一个打印机，避免使用错误的打印机
+        // 2. 如果找不到指定打印机，尝试使用系统默认打印机
+        PrintService defaultPrintService = PrintServiceLookup.lookupDefaultPrintService();
+        if (defaultPrintService != null) {
+            log.info("找不到指定打印机: {}, 使用系统默认打印机: {}",
+                    targetPrinter, defaultPrintService.getName());
+            return defaultPrintService;
+        }
+
+        // 3. 如果还是没有，使用第一个可用打印机
+        if (services.length > 0) {
+            log.info("找不到指定和默认打印机，使用第一个可用打印机: {}", services[0].getName());
+            return services[0];
+        }
+
+        log.error("找不到任何可用打印机");
+        return null;
     }
 
     // 执行打印任务
