@@ -7,7 +7,7 @@ print:
 # 远程服务器配置
 remote:
   server:
-    url: http://127.0.0.1:23335 # 远程服务器URL 暂时放在测试打印内容客服的项目下
+    url: http://119.91.239.47 # 远程服务器URL 暂时放在测试打印内容客服的项目下
     ws-path: /print-ws # WebSocket路径
   auth:
     enabled: false # 是否启用认证

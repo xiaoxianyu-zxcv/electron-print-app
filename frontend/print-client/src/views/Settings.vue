@@ -43,7 +43,7 @@
 
       <el-form label-width="120px">
         <el-form-item label="服务器地址">
-          <el-input v-model="serverUrl" placeholder="http://121.62.28.55" />
+          <el-input v-model="serverUrl" placeholder="http://119.91.239" />
         </el-form-item>
         <el-button type="primary" @click="saveServerSettings">保存服务器设置</el-button>
       </el-form>

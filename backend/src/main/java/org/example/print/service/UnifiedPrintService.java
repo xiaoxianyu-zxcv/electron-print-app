@@ -158,6 +158,7 @@ public class UnifiedPrintService {
                         DocFlavor.BYTE_ARRAY.AUTOSENSE,
                         null);
 
+
                 // 执行打印
                 job.print(doc, null);
 
@@ -222,15 +223,19 @@ public class UnifiedPrintService {
         // ESC/POS 指令常量
         final String ESC = "\u001B";
         final String GS = "\u001D";
-        // 字体大小控制
-        final String SMALL_SIZE = ESC + "!1";      // 小号字体
-        final String NORMAL_SIZE = GS + "!0"; // 正常大小
-        final String LARGE_SIZE = GS + "!1";  // 稍大一点
-        final String MEDIUM_SIZE = GS + "!16"; // 中等大小
+
+        // 字体大小控制 - 修改这些指令
+        final String SMALL_SIZE = ESC + "!" + (char)0x01;     // 小号字体
+        final String NORMAL_SIZE = ESC + "!" + (char)0x00;    // 正常大小
+        final String L_SIZE = ESC + "!" + (char)0x02;    // 正常大小
+        final String LARGE_SIZE = ESC + "!" + (char)0x11;     // 稍大一点(加粗+小号)
+        final String DOUBLE_HEIGHT = ESC + "!" + (char)0x10;  // 双倍高度
+        final String DOUBLE_WIDTH = ESC + "!" + (char)0x20;   // 双倍宽度
+        final String DOUBLE_SIZE = ESC + "!" + (char)0x30;    // 双倍大小(宽+高)
         // 对齐方式控制
-        final String ALIGN_LEFT = ESC + "a0";      // 左对齐
-        final String ALIGN_CENTER = ESC + "a1";    // 居中对齐
-        final String ALIGN_RIGHT = ESC + "a2";     // 右对齐
+        final String ALIGN_LEFT = ESC + "a" + (char)0x00;     // 左对齐
+        final String ALIGN_CENTER = ESC + "a" + (char)0x01;   // 居中对齐
+        final String ALIGN_RIGHT = ESC + "a" + (char)0x02;    // 右对齐
         // 分隔线
         final String DIVIDER = "--------------------------------\n";
 
@@ -257,21 +262,20 @@ public class UnifiedPrintService {
         String deliveryType = pickupType == 0 ? "配送单" : "自提单";
 
         // 打印两份联单：商家联和用户联
-        for (int i = 0; i < 1; i++) {
+        for (int i = 0; i < 2; i++) {
             boolean isMerchantCopy = (i == 0); // 第一份是商家联，第二份是用户联
 
             // 1. 标题 - 指尖赤壁（居中，大字体）
             content.append(ALIGN_CENTER)
-                    .append(NORMAL_SIZE)
+                    .append(DOUBLE_SIZE)
                     .append("指尖赤壁\n")
                     .append(NORMAL_SIZE)
                     .append(DIVIDER);
 
             // 2. 联单类型（左：商家联/用户联，右：配送单/自提单）
-            content.append(ALIGN_LEFT)
-                    .append(isMerchantCopy ? "商家联" : "用户联")
-                    .append(ALIGN_RIGHT)
-                    .append(deliveryType)
+            content.append(ALIGN_CENTER)
+                    .append(LARGE_SIZE)
+                    .append(String.format("%-20s%s", isMerchantCopy ? "商家联" : "用户联", deliveryType))
                     .append("\n");
 
             // 3. 商家名称（居中）
@@ -290,52 +294,54 @@ public class UnifiedPrintService {
 
             // 5. 商品列表头部
             content.append(ALIGN_LEFT)
-                    .append("商品名         数量   单价    小计\n");
+                    .append(SMALL_SIZE)
+                    .append(String.format("%-10s %-5s %-8s %-12s\n",
+                            "商品", "数量", "单价", "小计"));
 
-            // 商品明细
+
+            // 商品明细 - 修改为两行显示
             double totalAmount = 0;
             for (int j = 0; j < goodsItems.size(); j++) {
                 JSONObject item = goodsItems.getJSONObject(j);
                 String goodsName = item.containsKey("goods_name") ? item.getString("goods_name") : "";
+                String goodsCode = item.containsKey("goods_code") ? item.getString("goods_code") : "";
                 int qty = item.getIntValue("sell_num", 0);
                 double price = item.containsKey("sell_price") ? item.getDoubleValue("sell_price") : 0;
                 double subtotal = item.containsKey("sell_subtotal") ? item.getDoubleValue("sell_subtotal") : 0;
                 totalAmount += subtotal;
 
-                // 商品名称可能过长需要截断
-                if (goodsName.length() > 10) {
-                    goodsName = goodsName.substring(0, 8) + "..";
-                }
+                // 商品名称单独一行，不再截断
+                content.append(ALIGN_LEFT)
+                        .append(goodsName)
+                        .append("\n");
 
-                // 格式化商品行，确保对齐
-                content.append(String.format("%-12s %-5d %-6.2f %-6.2f\n",
-                        goodsName, qty, price, subtotal));
+
+                content.append(ALIGN_LEFT)
+                        .append(String.format("%-13s %-9s %-9s %-9s\n",
+                                goodsCode, qty, price, subtotal));
             }
+
 
             // 6. 原价和数量
             content.append(ALIGN_LEFT)
-                    .append("原价: ￥")
-                    .append(String.format("%.2f", data.containsKey("goods_price") ? data.getDoubleValue("goods_price") : 0));
-            content.append(ALIGN_RIGHT)
-                    .append("数量: ")
-                    .append(totalQty)
+                    .append(String.format("%-20s%s","总计: ￥" + String.format("%.2f", data.containsKey("goods_price") ? data.getDoubleValue("goods_price") : 0) ,
+                            "总数: " + totalQty))
                     .append("\n");
 
-            // 7. 优惠和应收
-            double discount = (data.containsKey("goods_price") ? data.getDoubleValue("goods_price") : 0)
+
+            // 7. 运费和优惠
+            double discount = (data.containsKey("all_money") ? data.getDoubleValue("all_money") : 0)
                     - (data.containsKey("pay_money") ? data.getDoubleValue("pay_money") : 0);
             content.append(ALIGN_LEFT)
-                    .append("优惠: ￥")
-                    .append(String.format("%.2f", discount));
-            content.append(ALIGN_RIGHT)
-                    .append("应收: ￥")
-                    .append(String.format("%.2f", data.containsKey("pay_money") ? data.getDoubleValue("pay_money") : 0))
+                    .append(String.format("%-20s%s",
+                            "优惠: ￥" + String.format("%.2f", discount),
+                            "运费: ￥" + String.format("%.2f", data.containsKey("user_delivery_fee") ? data.getDoubleValue("user_delivery_fee") : 0)))
                     .append("\n");
 
-            // 8. 实付金额
+            // 8. 应收，实付金额
             content.append(ALIGN_LEFT)
-                    .append("实付: ￥")
-                    .append(String.format("%.2f", data.containsKey("pay_money") ? data.getDoubleValue("pay_money") : 0))
+                    .append(String.format("%-20s%s","应收: ￥" + (data.containsKey("all_money") ? data.getDoubleValue("all_money") : 0) ,
+                            "实收: ￥"+ (data.containsKey("pay_money") ? data.getDoubleValue("pay_money") : 0)))
                     .append("\n")
                     .append(DIVIDER);
 
@@ -361,15 +367,18 @@ public class UnifiedPrintService {
             // 支付时间
             content.append("支付时间: ")
                     .append(data.containsKey("orderTime") ? data.getString("orderTime") : "")
-                    .append("\n");
+                    .append("\n")
+                    .append(DIVIDER);
 
+            String name = data.containsKey("user_name") ? data.getString("user_name") : "";
+            String phone = data.containsKey("user_phone") ? data.getString("user_phone") : "";
             // 如果是配送单，添加收货信息
             if (pickupType == 0 && data.containsKey("user_name")) {
                 content.append("收货人: ")
-                        .append(data.containsKey("user_name") ? data.getString("user_name") : "")
+                        .append(name.isEmpty() ?  "**": name.charAt(0)+"**")
                         .append("\n");
                 content.append("电话: ")
-                        .append(data.containsKey("user_phone") ? data.getString("user_phone") : "")
+                        .append(phone.isEmpty()? "**": phone.substring(0, 3) + "****" + phone.substring(7))
                         .append("\n");
                 content.append("地址: ")
                         .append(data.containsKey("user_address") ? data.getString("user_address") : "")

@@ -14,7 +14,11 @@
     "build": "npm run build:backend && npm run build:frontend",
     "package": "electron-builder",
     "package:win": "electron-builder --win",
-    "release": "npm run build && npm run package"
+    "package:win32": "electron-builder --win --ia32",
+    "package:win64": "electron-builder --win --x64",
+    "package:win-all": "electron-builder --win --ia32 --x64",
+    "release": "npm run build && npm run package",
+    "release-all": "npm run build && npm run package:win-all"
   },
   "keywords": [
     "electron",
@@ -80,8 +84,14 @@
         ]
       },
       {
-        "from": "jre",
-        "to": "jre"
+        "from": "jre-x64",
+        "to": "jre-x64",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "jre-ia32",
+        "to": "jre-ia32",
+        "filter": ["**/*"]
       },
       {
         "from": "build/icons",
@@ -90,7 +100,10 @@
     ],
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": ["x64", "ia32"]
+        }
       ],
       "icon": "build/icons/icon.ico"
     },
@@ -104,7 +117,7 @@
     "publish": [
       {
         "provider": "generic",
-        "url": "http://121.62.28.55/updates/"
+        "url": "http://119.91.239.47/updates/"
       }
     ]
   }
