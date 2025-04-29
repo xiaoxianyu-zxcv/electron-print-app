@@ -11,6 +11,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+
 import javax.print.*;
 import javax.print.attribute.Attribute;
 import javax.print.attribute.AttributeSet;
@@ -18,6 +22,9 @@ import javax.print.attribute.standard.PrinterState;
 import javax.print.attribute.standard.PrinterStateReason;
 import javax.print.attribute.standard.PrinterStateReasons;
 import javax.print.attribute.standard.Severity;
+import javax.print.event.PrintJobAdapter;
+import javax.print.event.PrintJobEvent;
+import javax.print.event.PrintJobListener;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -48,9 +55,15 @@ public class UnifiedPrintService {
     private PrintTaskPersistence printTaskPersistence;
 
 
+    @Value("${print.qrcode-path:static/qrcode.jpg}")
+    private String qrcodePath;
+
     //模拟打印
     @Value("${print.test-mode:false}")
     private boolean testMode;
+
+    @Autowired
+    private org.springframework.core.io.ResourceLoader resourceLoader;
 
     // 获取所有打印机
     public List<PrintService> getAllPrinters() {
@@ -145,14 +158,8 @@ public class UnifiedPrintService {
                     formattedContent = task.getContent();
                 }
 
-
-                // 输出打印任务详情
-                log.info("打印任务信息:");
-                log.info("任务ID: {}", task.getTaskId());
-                log.info("打印机: {}", printService.getName());
-                log.info("打印内容长度: {}", task.getContent().length());
-
                 // 创建打印作业
+                // 1. 首先打印文本内容
                 DocPrintJob job = printService.createPrintJob();
                 Doc doc = new SimpleDoc(formattedContent.getBytes("GBK"),
                         DocFlavor.BYTE_ARRAY.AUTOSENSE,
@@ -161,6 +168,52 @@ public class UnifiedPrintService {
 
                 // 执行打印
                 job.print(doc, null);
+
+
+                // 2. 然后打印二维码图片
+                try {
+                    org.springframework.core.io.Resource resource;
+                    if (qrcodePath.startsWith("classpath:")) {
+                        resource = resourceLoader.getResource(qrcodePath);
+                    } else {
+                        resource = resourceLoader.getResource("file:" + qrcodePath);
+                    }
+
+                    if (resource.exists()) {
+                        log.info("二维码文件存在: {}", resource);
+                        BufferedImage qrImage = ImageIO.read(resource.getInputStream());
+
+                        //先打印对二维码的说明文字
+                        StringBuilder imageDesc = new StringBuilder();
+                        final String ESC = "\u001B";
+                        final String ALIGN_CENTER = ESC + "a" + (char) 0x01;
+                        final String NORMAL_SIZE = ESC + "!" + (char) 0x00;
+
+
+                        imageDesc.append(ALIGN_CENTER)
+                                .append(NORMAL_SIZE)
+                                .append("扫描下方二维码，关注我们的小程序\n\n");
+
+
+                        Doc desDoc = new SimpleDoc(imageDesc.toString().getBytes("GBK"), DocFlavor.BYTE_ARRAY.AUTOSENSE, null);
+                        job.print(desDoc,null);
+
+                        //打印图片
+                        DocFlavor flavor = DocFlavor.SERVICE_FORMATTED.RENDERABLE_IMAGE;
+                        Doc imageDoc = new SimpleDoc(qrImage, flavor, null);
+                        job.print(imageDoc,null);
+
+                        // 最后添加几行空白并切纸
+                        Doc footerDoc = new SimpleDoc("\n\n\n\n\n".getBytes("GBK"),
+                                DocFlavor.BYTE_ARRAY.AUTOSENSE, null);
+                        job.print(footerDoc, null);
+
+                    }
+                }catch (Exception e){
+                    log.error("打印二维码失败", e);
+                }
+
+
 
                 // 更新任务状态
                 task.setStatus(PrintTaskStatus.COMPLETED);
@@ -176,6 +229,8 @@ public class UnifiedPrintService {
             }
         });
     }
+
+
 
     // 检查打印机状态
     public boolean isPrinterReady(String printerName) {
@@ -225,17 +280,17 @@ public class UnifiedPrintService {
         final String GS = "\u001D";
 
         // 字体大小控制 - 修改这些指令
-        final String SMALL_SIZE = ESC + "!" + (char)0x01;     // 小号字体
-        final String NORMAL_SIZE = ESC + "!" + (char)0x00;    // 正常大小
-        final String L_SIZE = ESC + "!" + (char)0x02;    // 正常大小
-        final String LARGE_SIZE = ESC + "!" + (char)0x11;     // 稍大一点(加粗+小号)
-        final String DOUBLE_HEIGHT = ESC + "!" + (char)0x10;  // 双倍高度
-        final String DOUBLE_WIDTH = ESC + "!" + (char)0x20;   // 双倍宽度
-        final String DOUBLE_SIZE = ESC + "!" + (char)0x30;    // 双倍大小(宽+高)
+        final String SMALL_SIZE = ESC + "!" + (char) 0x01;     // 小号字体
+        final String NORMAL_SIZE = ESC + "!" + (char) 0x00;    // 正常大小
+        final String L_SIZE = ESC + "!" + (char) 0x02;    // 正常大小
+        final String LARGE_SIZE = ESC + "!" + (char) 0x11;     // 稍大一点(加粗+小号)
+        final String DOUBLE_HEIGHT = ESC + "!" + (char) 0x10;  // 双倍高度
+        final String DOUBLE_WIDTH = ESC + "!" + (char) 0x20;   // 双倍宽度
+        final String DOUBLE_SIZE = ESC + "!" + (char) 0x30;    // 双倍大小(宽+高)
         // 对齐方式控制
-        final String ALIGN_LEFT = ESC + "a" + (char)0x00;     // 左对齐
-        final String ALIGN_CENTER = ESC + "a" + (char)0x01;   // 居中对齐
-        final String ALIGN_RIGHT = ESC + "a" + (char)0x02;    // 右对齐
+        final String ALIGN_LEFT = ESC + "a" + (char) 0x00;     // 左对齐
+        final String ALIGN_CENTER = ESC + "a" + (char) 0x01;   // 居中对齐
+        final String ALIGN_RIGHT = ESC + "a" + (char) 0x02;    // 右对齐
         // 分隔线
         final String DIVIDER = "--------------------------------\n";
 
@@ -324,7 +379,7 @@ public class UnifiedPrintService {
 
             // 6. 原价和数量
             content.append(ALIGN_LEFT)
-                    .append(String.format("%-20s%s","总计: ￥" + String.format("%.2f", data.containsKey("goods_price") ? data.getDoubleValue("goods_price") : 0) ,
+                    .append(String.format("%-20s%s", "总计: ￥" + String.format("%.2f", data.containsKey("goods_price") ? data.getDoubleValue("goods_price") : 0),
                             "总数: " + totalQty))
                     .append("\n");
 
@@ -332,18 +387,30 @@ public class UnifiedPrintService {
             // 7. 运费和优惠
             double discount = (data.containsKey("all_money") ? data.getDoubleValue("all_money") : 0)
                     - (data.containsKey("pay_money") ? data.getDoubleValue("pay_money") : 0);
-            content.append(ALIGN_LEFT)
-                    .append(String.format("%-20s%s",
-                            "优惠: ￥" + String.format("%.2f", discount),
-                            "运费: ￥" + String.format("%.2f", data.containsKey("user_delivery_fee") ? data.getDoubleValue("user_delivery_fee") : 0)))
+            //content.append(ALIGN_LEFT)
+            //        .append(String.format("%-20s%s",
+            //                "优惠: ￥" + String.format("%.2f", discount),
+            //                "运费: ￥" + String.format("%.2f", data.containsKey("delivery_fee") ? data.getDoubleValue("delivery_fee") : 0)))
+            //        .append("\n");
+
+            content.append(ALIGN_LEFT).append("运费: ￥").append(data.containsKey("delivery_fee") ? data.getDoubleValue("delivery_fee") : 0)
+                    .append("\n");
+
+            //打包费
+            content.append(ALIGN_LEFT).append("打包费: ￥").append(data.containsKey("pack_fee") ? data.getDoubleValue("pack_fee") : 0)
+                    .append("\n");
+
+            content.append(ALIGN_LEFT).append("优惠: ￥").append(discount)
                     .append("\n");
 
             // 8. 应收，实付金额
             content.append(ALIGN_LEFT)
-                    .append(String.format("%-20s%s","应收: ￥" + (data.containsKey("all_money") ? data.getDoubleValue("all_money") : 0) ,
-                            "实收: ￥"+ (data.containsKey("pay_money") ? data.getDoubleValue("pay_money") : 0)))
+                    .append(String.format("%-20s%s", "应收: ￥" + (data.containsKey("all_money") ? data.getDoubleValue("all_money") : 0),
+                            "实收: ￥" + (data.containsKey("pay_money") ? data.getDoubleValue("pay_money") : 0)))
                     .append("\n")
                     .append(DIVIDER);
+
+
 
             // 9. 线上或线下
             content.append(isOnline ? "线上订单" : "线下订单")
@@ -375,10 +442,10 @@ public class UnifiedPrintService {
             // 如果是配送单，添加收货信息
             if (pickupType == 0 && data.containsKey("user_name")) {
                 content.append("收货人: ")
-                        .append(name.isEmpty() ?  "**": name.charAt(0)+"**")
+                        .append(name.isEmpty() ? "**" : name.charAt(0) + "**")
                         .append("\n");
                 content.append("电话: ")
-                        .append(phone.isEmpty()? "**": phone.substring(0, 3) + "****" + phone.substring(7))
+                        .append(phone.isEmpty() ? "**" : phone.substring(0, 3) + "****" + phone.substring(7))
                         .append("\n");
                 content.append("地址: ")
                         .append(data.containsKey("user_address") ? data.getString("user_address") : "")
@@ -392,14 +459,28 @@ public class UnifiedPrintService {
                         .append("\n");
             }
 
+            //自提患者配送时间。
+            if (pickupType == 0 && data.containsKey("delivery_time")) {
+                content.append("配送时间: ")
+                        .append(data.getString("delivery_time"))
+                        .append("\n");
+            } else if (pickupType == 1 && data.containsKey("delivery_time")) {
+                content.append("自提时间: ")
+                        .append(data.getString("delivery_time"))
+                        .append("\n");
+            }
+
             // 添加打印时间
             content.append("打印时间: ")
                     .append(getCurrentTime())
                     .append("\n\n\n");
 
+
             // 添加切纸或足够的空行以便手撕
             if (i == 0) { // 第一联结束，添加更多空行作为两联之间的间隔
                 content.append("\n\n\n\n\n");
+            } else {
+                content.append("\n\n");
             }
         }
 
