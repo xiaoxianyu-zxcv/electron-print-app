@@ -370,6 +370,18 @@ public class UnifiedPrintService {
                         .append(goodsName)
                         .append("\n");
 
+                // 新增：如果是餐饮商品，显示规格信息
+                boolean isFood = item.getBooleanValue("is_food", false);
+                if (isFood && item.containsKey("spec_text")) {
+                    String specText = item.getString("spec_text");
+                    if (specText != null && !specText.trim().isEmpty()) {
+                        content.append(ALIGN_LEFT)
+                                .append(SMALL_SIZE)  // 使用小号字体显示规格
+                                .append(specText)
+                                .append("\n")
+                                .append(NORMAL_SIZE); // 恢复正常字体
+                    }
+                }
 
                 content.append(ALIGN_LEFT)
                         .append(String.format("%-13s %-9s %-9s %-9s\n",
