@@ -22,8 +22,16 @@ async function startSpringBootServer() {
     let javaExecutablePath;
 
     if (app.isPackaged) {
-      // 生产环境 - 从extraResources中获取文件
-      jarPath = path.join(process.resourcesPath, 'backend', 'boot_print-0.0.1-SNAPSHOT.jar');
+      // 生产环境 - 动态查找JAR文件
+      const backendDir = path.join(process.resourcesPath, 'backend');
+      const files = fs.readdirSync(backendDir);
+      const jarFile = files.find(file => file.endsWith('.jar') && !file.endsWith('.original.jar'));
+
+      if (!jarFile) {
+        throw new Error(`在 ${backendDir} 中找不到可执行的JAR文件`);
+      }
+      jarPath = path.join(backendDir, jarFile);
+
       // 构建内置JRE的Java路径（根据不同平台）
       if (process.platform === 'win32') {
         javaExecutablePath = path.join(process.resourcesPath, 'jre', 'bin', 'java.exe');
@@ -31,8 +39,15 @@ async function startSpringBootServer() {
         javaExecutablePath = path.join(process.resourcesPath, 'jre', 'bin', 'java');
       }
     } else {
-      // 开发环境
-      jarPath = path.join(__dirname, '../../backend/target/boot_print-0.0.1-SNAPSHOT.jar');
+      // 开发环境 - 同样动态查找以提高稳健性
+      const backendDir = path.join(__dirname, '../../backend/target');
+      const files = fs.readdirSync(backendDir);
+      const jarFile = files.find(file => file.endsWith('.jar') && !file.endsWith('.original.jar'));
+      if (!jarFile) {
+        throw new Error(`在 ${backendDir} 中找不到可执行的JAR文件`);
+      }
+      jarPath = path.join(backendDir, jarFile);
+      
       // 开发环境可以使用项目中的JRE或系统Java
       if (fs.existsSync(path.join(__dirname, '../../jre'))) {
         if (process.platform === 'win32') {

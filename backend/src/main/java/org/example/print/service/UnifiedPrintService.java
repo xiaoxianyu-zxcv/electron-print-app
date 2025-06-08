@@ -36,6 +36,15 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.print.PageFormat;
+import java.awt.print.Printable;
+import java.awt.print.PrinterException;
+import javax.swing.JTextArea;
+import javax.swing.JPanel;
+import javax.swing.UIManager;
 
 @Service
 @Slf4j
@@ -158,62 +167,71 @@ public class UnifiedPrintService {
                     formattedContent = task.getContent();
                 }
 
-                // 创建打印作业
-                // 1. 首先打印文本内容
                 DocPrintJob job = printService.createPrintJob();
-                Doc doc = new SimpleDoc(formattedContent.getBytes("GBK"),
-                        DocFlavor.BYTE_ARRAY.AUTOSENSE,
-                        null);
+
+                // 检查打印机名称，如果是PDF打印机，则使用不同的打印方式
+                if (printService.getName().toLowerCase().contains("pdf")) {
+                    log.info("检测到PDF打印机，使用Printable接口进行打印");
+                    // 为PDF打印机创建可打印内容
+                    Printable printable = createPrintableForPdf(formattedContent);
+                    Doc pdfDoc = new SimpleDoc(printable, DocFlavor.SERVICE_FORMATTED.PRINTABLE, null);
+                    job.print(pdfDoc, null);
+                } else {
+                    log.info("使用物理打印机（ESC/POS）模式进行打印");
+                    // 原始的物理打印机逻辑
+                    // 1. 首先打印文本内容
+                    Doc doc = new SimpleDoc(formattedContent.getBytes("GBK"),
+                            DocFlavor.BYTE_ARRAY.AUTOSENSE,
+                            null);
 
 
-                // 执行打印
-                job.print(doc, null);
+                    // 执行打印
+                    job.print(doc, null);
 
 
-                // 2. 然后打印二维码图片
-                try {
-                    org.springframework.core.io.Resource resource;
-                    if (qrcodePath.startsWith("classpath:")) {
-                        resource = resourceLoader.getResource(qrcodePath);
-                    } else {
-                        resource = resourceLoader.getResource("file:" + qrcodePath);
+                    // 2. 然后打印二维码图片
+                    try {
+                        org.springframework.core.io.Resource resource;
+                        if (qrcodePath.startsWith("classpath:")) {
+                            resource = resourceLoader.getResource(qrcodePath);
+                        } else {
+                            resource = resourceLoader.getResource("file:" + qrcodePath);
+                        }
+
+                        if (resource.exists()) {
+                            log.info("二维码文件存在: {}", resource);
+                            BufferedImage qrImage = ImageIO.read(resource.getInputStream());
+
+                            //先打印对二维码的说明文字
+                            StringBuilder imageDesc = new StringBuilder();
+                            final String ESC = "\u001B";
+                            final String ALIGN_CENTER = ESC + "a" + (char) 0x01;
+                            final String NORMAL_SIZE = ESC + "!" + (char) 0x00;
+
+
+                            imageDesc.append(ALIGN_CENTER)
+                                    .append(NORMAL_SIZE)
+                                    .append("扫描下方二维码，关注我们的小程序\n\n");
+
+
+                            Doc desDoc = new SimpleDoc(imageDesc.toString().getBytes("GBK"), DocFlavor.BYTE_ARRAY.AUTOSENSE, null);
+                            job.print(desDoc,null);
+
+                            //打印图片
+                            DocFlavor flavor = DocFlavor.SERVICE_FORMATTED.RENDERABLE_IMAGE;
+                            Doc imageDoc = new SimpleDoc(qrImage, flavor, null);
+                            job.print(imageDoc,null);
+
+                            // 最后添加几行空白并切纸
+                            Doc footerDoc = new SimpleDoc("\n\n\n\n\n".getBytes("GBK"),
+                                    DocFlavor.BYTE_ARRAY.AUTOSENSE, null);
+                            job.print(footerDoc, null);
+
+                        }
+                    }catch (Exception e){
+                        log.error("打印二维码失败", e);
                     }
-
-                    if (resource.exists()) {
-                        log.info("二维码文件存在: {}", resource);
-                        BufferedImage qrImage = ImageIO.read(resource.getInputStream());
-
-                        //先打印对二维码的说明文字
-                        StringBuilder imageDesc = new StringBuilder();
-                        final String ESC = "\u001B";
-                        final String ALIGN_CENTER = ESC + "a" + (char) 0x01;
-                        final String NORMAL_SIZE = ESC + "!" + (char) 0x00;
-
-
-                        imageDesc.append(ALIGN_CENTER)
-                                .append(NORMAL_SIZE)
-                                .append("扫描下方二维码，关注我们的小程序\n\n");
-
-
-                        Doc desDoc = new SimpleDoc(imageDesc.toString().getBytes("GBK"), DocFlavor.BYTE_ARRAY.AUTOSENSE, null);
-                        job.print(desDoc,null);
-
-                        //打印图片
-                        DocFlavor flavor = DocFlavor.SERVICE_FORMATTED.RENDERABLE_IMAGE;
-                        Doc imageDoc = new SimpleDoc(qrImage, flavor, null);
-                        job.print(imageDoc,null);
-
-                        // 最后添加几行空白并切纸
-                        Doc footerDoc = new SimpleDoc("\n\n\n\n\n".getBytes("GBK"),
-                                DocFlavor.BYTE_ARRAY.AUTOSENSE, null);
-                        job.print(footerDoc, null);
-
-                    }
-                }catch (Exception e){
-                    log.error("打印二维码失败", e);
                 }
-
-
 
                 // 更新任务状态
                 task.setStatus(PrintTaskStatus.COMPLETED);
@@ -553,5 +571,41 @@ public class UnifiedPrintService {
         }
     }
 
+    private Printable createPrintableForPdf(String content) {
+        return (graphics, pageFormat, pageIndex) -> {
+            if (pageIndex > 0) {
+                return Printable.NO_SUCH_PAGE;
+            }
+
+            try {
+                // 使用跨平台的逻辑字体
+                UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
+            } catch (Exception e) {
+                log.warn("设置跨平台外观失败", e);
+            }
+
+            Graphics2D g2d = (Graphics2D) graphics;
+            g2d.translate(pageFormat.getImageableX(), pageFormat.getImageableY());
+
+            // 设置字体，使用逻辑字体以保证在不同系统上都可用
+            g2d.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 10));
+
+            // 使用JTextArea来处理自动换行
+            JTextArea textArea = new JTextArea(content);
+            textArea.setFont(g2d.getFont());
+            textArea.setLineWrap(true);
+            textArea.setWrapStyleWord(true);
+            textArea.setSize((int) pageFormat.getImageableWidth(), Integer.MAX_VALUE);
+            
+            // 将JTextArea内容绘制到Graphics对象上
+            JPanel panel = new JPanel();
+            panel.add(textArea);
+            panel.setSize((int) pageFormat.getImageableWidth(), (int) pageFormat.getImageableHeight());
+            panel.validate();
+            textArea.paint(g2d);
+
+            return Printable.PAGE_EXISTS;
+        };
+    }
 
 }
