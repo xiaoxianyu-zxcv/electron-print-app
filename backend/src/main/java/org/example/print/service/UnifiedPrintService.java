@@ -345,10 +345,13 @@ public class UnifiedPrintService {
                     .append(NORMAL_SIZE)
                     .append(DIVIDER);
 
-            // 2. 联单类型（左：商家联/用户联，右：配送单/自提单）
+
+            // 2. 联单类型（左：商家联/用户联，右：动态单据类型）
+            // 修改：使用新增的 bill_type 字段，而不是固定的判断逻辑
+            String billType = data.containsKey("bill_type") ? data.getString("bill_type") : "配送单";
             content.append(ALIGN_CENTER)
                     .append(LARGE_SIZE)
-                    .append(String.format("%-20s%s", isMerchantCopy ? "商家联" : "用户联", deliveryType))
+                    .append(String.format("%-20s%s", isMerchantCopy ? "商家联" : "用户联", billType))
                     .append("\n");
 
             // 3. 商家名称（居中）
@@ -368,8 +371,8 @@ public class UnifiedPrintService {
             // 5. 商品列表头部
             content.append(ALIGN_LEFT)
                     .append(SMALL_SIZE)
-                    .append(String.format("%-10s %-5s %-8s %-12s\n",
-                            "商品", "数量", "单价", "小计"));
+                    .append(formatTableRow("商品", "数量", "单价", "小计"))
+                    .append("\n");
 
 
             // 商品明细 - 修改为两行显示
@@ -385,6 +388,7 @@ public class UnifiedPrintService {
 
                 // 商品名称单独一行，不再截断
                 content.append(ALIGN_LEFT)
+                        .append(NORMAL_SIZE)  // 恢复正常字体显示商品名
                         .append(goodsName)
                         .append("\n");
 
@@ -396,14 +400,15 @@ public class UnifiedPrintService {
                         content.append(ALIGN_LEFT)
                                 .append(SMALL_SIZE)  // 使用小号字体显示规格
                                 .append(specText)
-                                .append("\n")
-                                .append(NORMAL_SIZE); // 恢复正常字体
+                                .append("\n");
                     }
                 }
 
+                // 商品详细信息行，使用专门的对齐方法
                 content.append(ALIGN_LEFT)
-                        .append(String.format("%-13s %-9s %-9s %-9s\n",
-                                goodsCode, qty, price, subtotal));
+                        .append(SMALL_SIZE)  // 使用与表头相同的小号字体
+                        .append(formatTableRow(goodsCode, String.valueOf(qty), String.valueOf(price), String.valueOf(subtotal)))
+                        .append("\n");
             }
 
 
@@ -489,16 +494,28 @@ public class UnifiedPrintService {
                         .append("\n");
             }
 
-            //自提患者配送时间。
-            if (pickupType == 0 && data.containsKey("delivery_time")) {
-                content.append("配送时间: ")
-                        .append(data.getString("delivery_time"))
-                        .append("\n");
-            } else if (pickupType == 1 && data.containsKey("delivery_time")) {
-                content.append("自提时间: ")
+            // 修改：根据 show_schedule_time 和 bill_type 来决定时间显示
+            boolean showScheduleTime = data.getBooleanValue("show_schedule_time", false);
+            if (showScheduleTime && data.containsKey("delivery_time") &&
+                    !data.getString("delivery_time").isEmpty()) {
+
+                String timeLabel;
+                String currentBillType = data.containsKey("bill_type") ? data.getString("bill_type") : "配送单";
+
+                // 根据单据类型确定时间标签
+                if ("自提单".equals(currentBillType)) {
+                    timeLabel = "自提时间";
+                } else if ("预约单".equals(currentBillType)) {
+                    timeLabel = "预约时间";
+                } else {
+                    timeLabel = "配送时间"; // 默认
+                }
+
+                content.append(timeLabel + ": ")
                         .append(data.getString("delivery_time"))
                         .append("\n");
             }
+
 
             // 添加打印时间
             content.append("打印时间: ")
@@ -521,6 +538,53 @@ public class UnifiedPrintService {
     // 获取当前时间
     private String getCurrentTime() {
         return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    }
+
+    // 计算字符串在热敏打印机上的显示宽度（中文字符占2个单位，英文字符占1个单位）
+    private int getDisplayWidth(String str) {
+        if (str == null) return 0;
+        int width = 0;
+        for (char c : str.toCharArray()) {
+            if (c >= 0x4E00 && c <= 0x9FFF) { // 中文字符范围
+                width += 2;
+            } else {
+                width += 1;
+            }
+        }
+        return width;
+    }
+
+    // 格式化表格行，确保列对齐
+    private String formatTableRow(String col1, String col2, String col3, String col4) {
+        // 定义每列的显示宽度（以英文字符为单位）
+        int[] columnWidths = {12, 4, 6, 6}; // "商品", "数量", "单价", "小计"
+        
+        StringBuilder row = new StringBuilder();
+        String[] columns = {col1, col2, col3, col4};
+        
+        for (int i = 0; i < columns.length; i++) {
+            String column = columns[i] != null ? columns[i] : "";
+            int currentWidth = getDisplayWidth(column);
+            int targetWidth = columnWidths[i];
+            
+            // 添加列内容
+            row.append(column);
+            
+            // 添加空格来达到目标宽度
+            int spacesToAdd = targetWidth - currentWidth;
+            if (spacesToAdd > 0) {
+                for (int j = 0; j < spacesToAdd; j++) {
+                    row.append(" ");
+                }
+            }
+            
+            // 列之间添加一个空格分隔
+            if (i < columns.length - 1) {
+                row.append(" ");
+            }
+        }
+        
+        return row.toString();
     }
 
 
