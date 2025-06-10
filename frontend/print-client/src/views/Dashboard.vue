@@ -115,7 +115,20 @@
         <el-table-column label="状态" width="120">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)">
-              {{ getStatusText(scope.row.status) }}
+              {{ isRefundTask(scope.row) ? '退货-' : '' }}{{ getStatusText(scope.row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="类型" width="100">
+          <template #default="scope">
+            <el-tag
+                v-if="isRefundTask(scope.row)"
+                type="warning"
+                effect="dark">
+              退货单
+            </el-tag>
+            <el-tag v-else type="primary">
+              销售单
             </el-tag>
           </template>
         </el-table-column>
@@ -309,6 +322,18 @@ const getStatusType = (status) => {
   }
   return typeMap[status] || ''
 }
+
+const isRefundTask = (task) => {
+  try {
+    const content = JSON.parse(task.content);
+    return content.type === 'refund';
+  }catch {
+    return task.content && task.content.include('退货单');
+  }
+
+
+}
+
 </script>
 
 <style scoped>

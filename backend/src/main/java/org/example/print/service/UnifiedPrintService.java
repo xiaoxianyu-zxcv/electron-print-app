@@ -215,12 +215,12 @@ public class UnifiedPrintService {
 
 
                             Doc desDoc = new SimpleDoc(imageDesc.toString().getBytes("GBK"), DocFlavor.BYTE_ARRAY.AUTOSENSE, null);
-                            job.print(desDoc,null);
+                            job.print(desDoc, null);
 
                             //打印图片
                             DocFlavor flavor = DocFlavor.SERVICE_FORMATTED.RENDERABLE_IMAGE;
                             Doc imageDoc = new SimpleDoc(qrImage, flavor, null);
-                            job.print(imageDoc,null);
+                            job.print(imageDoc, null);
 
                             // 最后添加几行空白并切纸
                             Doc footerDoc = new SimpleDoc("\n\n\n\n\n".getBytes("GBK"),
@@ -228,7 +228,7 @@ public class UnifiedPrintService {
                             job.print(footerDoc, null);
 
                         }
-                    }catch (Exception e){
+                    } catch (Exception e) {
                         log.error("打印二维码失败", e);
                     }
                 }
@@ -247,7 +247,6 @@ public class UnifiedPrintService {
             }
         });
     }
-
 
 
     // 检查打印机状态
@@ -291,6 +290,14 @@ public class UnifiedPrintService {
 
     // 格式化打印内容
     private String formatPrintContent(JSONObject data) {
+
+
+        // 判断是否为退货单
+        if ("refund".equals(data.getString("type"))) {
+            return formatRefundPrintContent(data);
+        }
+
+
         StringBuilder content = new StringBuilder();
 
         // ESC/POS 指令常量
@@ -446,7 +453,6 @@ public class UnifiedPrintService {
                     .append(DIVIDER);
 
 
-
             // 9. 线上或线下
             content.append(isOnline ? "线上订单" : "线下订单")
                     .append("\n");
@@ -535,6 +541,153 @@ public class UnifiedPrintService {
     }
 
 
+    /**
+     * 格式化退货单打印内容
+     */
+    private String formatRefundPrintContent(JSONObject data) {
+        StringBuilder content = new StringBuilder();
+
+        // ESC/POS 指令常量
+        final String ESC = "\u001B";
+        final String GS = "\u001D";
+        final String SMALL_SIZE = ESC + "!" + (char) 0x01;
+        final String NORMAL_SIZE = ESC + "!" + (char) 0x00;
+        final String LARGE_SIZE = ESC + "!" + (char) 0x11;
+        final String DOUBLE_SIZE = ESC + "!" + (char) 0x30;
+        final String ALIGN_LEFT = ESC + "a" + (char) 0x00;
+        final String ALIGN_CENTER = ESC + "a" + (char) 0x01;
+        final String ALIGN_RIGHT = ESC + "a" + (char) 0x02;
+        final String DIVIDER = "--------------------------------\n";
+
+        // 获取退货商品数组
+        JSONArray goodsItems = data.getJSONArray("goodsItems");
+
+        // 1. 标题 - 退货单（居中，大字体）
+        content.append(ALIGN_CENTER)
+                .append(DOUBLE_SIZE)
+                .append("退 货 单\n")
+                .append(NORMAL_SIZE)
+                .append(DIVIDER);
+
+        // 2. 商家联标识（居中）
+        content.append(ALIGN_CENTER)
+                .append(LARGE_SIZE)
+                .append("商家联\n")
+                .append(NORMAL_SIZE);
+
+        // 3. 商家名称（居中）
+        content.append(ALIGN_CENTER)
+                .append(SMALL_SIZE)
+                .append(data.getString("merchant"))
+                .append("\n")
+                .append(DIVIDER);
+
+        // 4. 订单信息
+        content.append(ALIGN_LEFT)
+                .append(NORMAL_SIZE)
+                .append("原订单号: ")
+                .append(data.getString("orderNo"))
+                .append("\n");
+
+        content.append("原支付时间: ")
+                .append(data.getString("originalPayTime"))
+                .append("\n");
+
+        content.append("退款时间: ")
+                .append(data.getString("refundTime"))
+                .append("\n")
+                .append(DIVIDER);
+
+        // 5. 退货商品列表
+        content.append(ALIGN_LEFT)
+                .append(NORMAL_SIZE)
+                .append("退货商品明细:\n")
+                .append(SMALL_SIZE)
+                .append(formatTableRow("商品", "编码", "数量", "退款"))
+                .append("\n");
+
+        // 退货商品明细
+        double totalRefundAmount = 0;
+        for (int i = 0; i < goodsItems.size(); i++) {
+            JSONObject item = goodsItems.getJSONObject(i);
+            String goodsName = item.getString("goods_name");
+            String goodsCode = item.getString("goods_code");
+            int qty = item.getIntValue("sell_num"); // 已经是负数
+            double refundMoney = item.getDoubleValue("refund_money"); // 已经是负数
+            totalRefundAmount += Math.abs(refundMoney); // 累加时取绝对值
+
+            // 商品名称单独一行
+            content.append(ALIGN_LEFT)
+                    .append(NORMAL_SIZE)
+                    .append(goodsName)
+                    .append("\n");
+
+            // 如果是餐饮商品，显示规格
+            boolean isFood = item.getBooleanValue("is_food", false);
+            if (isFood && item.containsKey("spec_text")) {
+                String specText = item.getString("spec_text");
+                if (specText != null && !specText.trim().isEmpty()) {
+                    content.append(ALIGN_LEFT)
+                            .append(SMALL_SIZE)
+                            .append(specText)
+                            .append("\n");
+                }
+            }
+
+            // 商品详细信息行（数量和金额显示负数）
+            content.append(ALIGN_LEFT)
+                    .append(SMALL_SIZE)
+                    .append(formatTableRow(
+                            goodsCode,
+                            "",
+                            String.valueOf(qty),
+                            String.format("%.2f", refundMoney)
+                    ))
+                    .append("\n");
+        }
+
+        content.append(DIVIDER);
+
+        // 6. 退款汇总
+        content.append(ALIGN_LEFT)
+                .append(NORMAL_SIZE)
+                .append("退款总额: ")
+                .append(LARGE_SIZE)
+                .append(String.format("-￥%.2f", totalRefundAmount))
+                .append("\n")
+                .append(NORMAL_SIZE);
+
+        // 7. 退款方式
+        int payType = data.getIntValue("pay_type", 0);
+        String refundMethod = "原路退回";
+        if (payType == 1) {
+            refundMethod = "退回微信";
+        } else if (payType == 2) {
+            refundMethod = "退回余额";
+        }
+
+        content.append("退款方式: ")
+                .append(refundMethod)
+                .append("\n")
+                .append(DIVIDER);
+
+        // 8. 注意事项
+        content.append(SMALL_SIZE)
+                .append("注意事项:\n")
+                .append("1. 请妥善保管此单据\n")
+                .append("2. 退款将在1-3个工作日内到账\n")
+                .append("3. 如有问题请联系客服\n")
+                .append(DIVIDER);
+
+        // 9. 打印时间
+        content.append(NORMAL_SIZE)
+                .append("打印时间: ")
+                .append(getCurrentTime())
+                .append("\n\n\n\n\n");
+
+        return content.toString();
+    }
+
     // 获取当前时间
     private String getCurrentTime() {
         return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
@@ -558,18 +711,18 @@ public class UnifiedPrintService {
     private String formatTableRow(String col1, String col2, String col3, String col4) {
         // 定义每列的显示宽度（以英文字符为单位）
         int[] columnWidths = {12, 4, 6, 6}; // "商品", "数量", "单价", "小计"
-        
+
         StringBuilder row = new StringBuilder();
         String[] columns = {col1, col2, col3, col4};
-        
+
         for (int i = 0; i < columns.length; i++) {
             String column = columns[i] != null ? columns[i] : "";
             int currentWidth = getDisplayWidth(column);
             int targetWidth = columnWidths[i];
-            
+
             // 添加列内容
             row.append(column);
-            
+
             // 添加空格来达到目标宽度
             int spacesToAdd = targetWidth - currentWidth;
             if (spacesToAdd > 0) {
@@ -577,13 +730,13 @@ public class UnifiedPrintService {
                     row.append(" ");
                 }
             }
-            
+
             // 列之间添加一个空格分隔
             if (i < columns.length - 1) {
                 row.append(" ");
             }
         }
-        
+
         return row.toString();
     }
 
@@ -660,7 +813,7 @@ public class UnifiedPrintService {
             textArea.setLineWrap(true);
             textArea.setWrapStyleWord(true);
             textArea.setSize((int) pageFormat.getImageableWidth(), Integer.MAX_VALUE);
-            
+
             // 将JTextArea内容绘制到Graphics对象上
             JPanel panel = new JPanel();
             panel.add(textArea);
